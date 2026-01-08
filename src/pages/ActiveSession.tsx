@@ -4,9 +4,11 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import ProgressBar from '../components/ui/ProgressBar';
 import Toast from '../components/ui/Toast';
+import DigDeeperModal from '../components/ui/DigDeeperModal';
 import { useSessionStore } from '../stores/sessionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { evaluateAnswer, RateLimitError } from '../services/gemini';
+import type { ChatMessage } from '../types';
 
 type SessionPhase = 'question' | 'feedback' | 'summary';
 
@@ -27,6 +29,7 @@ export default function ActiveSession() {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isDigDeeperOpen, setIsDigDeeperOpen] = useState(false);
 
   const session = sessionId ? getSession(sessionId) : undefined;
 
@@ -217,8 +220,34 @@ export default function ActiveSession() {
 
   // Handle dig deeper
   const handleDigDeeper = () => {
-    setToast({ message: 'Dig Deeper mode coming soon!', type: 'info' });
-    // TODO: Implement dig deeper modal/page
+    setIsDigDeeperOpen(true);
+  };
+
+  // Handle dig deeper conversation update
+  const handleDigDeeperConversationUpdate = (messages: ChatMessage[]) => {
+    updateTopic(session!.id, currentTopicIndex, {
+      digDeeperConversation: messages,
+    });
+    // Update dig deeper count if this is a new conversation
+    if (messages.length === 2 && session!.score.digDeeperCount === 0) {
+      updateScore(session!.id, {
+        digDeeperCount: session!.score.digDeeperCount + 1,
+      });
+    } else if (messages.length > 0 && messages.length % 2 === 0) {
+      // Increment for each exchange (user message + assistant response)
+      const currentCount = session!.topics.filter(t => t.digDeeperConversation && t.digDeeperConversation.length > 0).length;
+      if (currentCount > session!.score.digDeeperCount) {
+        updateScore(session!.id, {
+          digDeeperCount: currentCount,
+        });
+      }
+    }
+  };
+
+  // Handle generating new question from dig deeper
+  const handleGenerateQuestion = (_newQuestion: string) => {
+    setToast({ message: 'New question generated! It will appear in your next topic.', type: 'success' });
+    // For now just show a toast - in a full implementation, we could add this to the topic's questions
   };
 
   // Handle difficulty change
@@ -431,6 +460,17 @@ export default function ActiveSession() {
           End Session Early
         </Button>
       </div>
+
+      {/* Dig Deeper Modal */}
+      <DigDeeperModal
+        isOpen={isDigDeeperOpen}
+        onClose={() => setIsDigDeeperOpen(false)}
+        topic={currentTopic}
+        apiKey={settings.geminiApiKey}
+        conversation={currentTopic.digDeeperConversation || []}
+        onConversationUpdate={handleDigDeeperConversationUpdate}
+        onGenerateQuestion={handleGenerateQuestion}
+      />
     </div>
   );
 }
