@@ -41,8 +41,39 @@ export default function SessionNotes() {
     });
   };
 
+  // Calculate completion percentage
+  const completionRate = session.score.topicsCompleted / session.topics.length;
+  const hasAnsweredQuestions = session.score.questionsAnswered > 0;
+
+  // Get encouraging message based on performance
+  const getCompletionMessage = () => {
+    if (completionRate >= 0.8 && hasAnsweredQuestions) {
+      return "Excellent work! You've demonstrated great engagement with the material.";
+    } else if (completionRate >= 0.5) {
+      return "Good progress! Keep learning and exploring new topics.";
+    } else if (hasAnsweredQuestions) {
+      return "Nice effort! Every question answered helps build understanding.";
+    } else {
+      return "Session complete! Consider revisiting topics for deeper learning.";
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {/* Congratulations Banner */}
+      {session.completedAt && (
+        <Card className="bg-success/20 border-success">
+          <div className="text-center py-2">
+            <h2 className="font-heading text-xl font-bold text-success mb-1">
+              Session Complete!
+            </h2>
+            <p className="text-text/80">
+              {getCompletionMessage()}
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
         <h1 className="font-heading text-3xl font-bold text-text">
