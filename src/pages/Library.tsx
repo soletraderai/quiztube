@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { useSessionStore } from '../stores/sessionStore';
+
+const ITEMS_PER_PAGE = 6; // 6 items for a 3-column grid layout
 
 export default function Library() {
   const navigate = useNavigate();
@@ -20,6 +22,9 @@ export default function Library() {
   );
   const [dateFrom, setDateFrom] = useState(searchParams.get('dateFrom') || '');
   const [dateTo, setDateTo] = useState(searchParams.get('dateTo') || '');
+  const [currentPage, setCurrentPage] = useState(
+    parseInt(searchParams.get('page') || '1', 10)
+  );
 
   // Filter and sort sessions
   const filteredSessions = useMemo(() => {
@@ -75,13 +80,32 @@ export default function Library() {
     return sessions;
   }, [library.sessions, search, filterBookmarked, sortOrder, dateFrom, dateTo]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredSessions.length / ITEMS_PER_PAGE);
+
+  // Reset to page 1 if current page is out of bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  // Get paginated sessions
+  const paginatedSessions = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filteredSessions.slice(startIndex, endIndex);
+  }, [filteredSessions, currentPage]);
+
   // Update URL params when filters change
   const updateParams = (
     newSearch?: string,
     newBookmarked?: boolean,
     newSort?: 'newest' | 'oldest',
     newDateFrom?: string,
-    newDateTo?: string
+    newDateTo?: string,
+    newPage?: number,
+    resetPage: boolean = true
   ) => {
     const params = new URLSearchParams();
     const searchValue = newSearch !== undefined ? newSearch : search;
@@ -89,12 +113,22 @@ export default function Library() {
     const sortValue = newSort !== undefined ? newSort : sortOrder;
     const dateFromValue = newDateFrom !== undefined ? newDateFrom : dateFrom;
     const dateToValue = newDateTo !== undefined ? newDateTo : dateTo;
+    // Reset page to 1 when filters change, unless explicitly setting page
+    const pageValue = newPage !== undefined ? newPage : (resetPage ? 1 : currentPage);
 
     if (searchValue) params.set('search', searchValue);
     if (bookmarkedValue) params.set('bookmarked', 'true');
     if (sortValue !== 'newest') params.set('sort', sortValue);
     if (dateFromValue) params.set('dateFrom', dateFromValue);
     if (dateToValue) params.set('dateTo', dateToValue);
+    if (pageValue > 1) params.set('page', pageValue.toString());
+
+    // Update currentPage state when resetting
+    if (resetPage && newPage === undefined) {
+      setCurrentPage(1);
+    } else if (newPage !== undefined) {
+      setCurrentPage(newPage);
+    }
 
     setSearchParams(params);
   };
@@ -131,7 +165,27 @@ export default function Library() {
     setSortOrder('newest');
     setDateFrom('');
     setDateTo('');
+    setCurrentPage(1);
     setSearchParams({});
+  };
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      updateParams(undefined, undefined, undefined, undefined, undefined, page, false);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
   };
 
   const hasActiveFilters = search.trim() || filterBookmarked || sortOrder !== 'newest' || dateFrom || dateTo;
@@ -251,7 +305,7 @@ export default function Library() {
       <h2 className="sr-only">Sessions</h2>
       {filteredSessions.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredSessions.map((session) => (
+          {paginatedSessions.map((session) => (
             <Card
               key={session.id}
               className="cursor-pointer hover:shadow-brutal-hover transition-shadow"
@@ -305,7 +359,91 @@ export default function Library() {
             </Card>
           ))}
         </div>
-      ) : (
+      ) : null}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+          <div className="text-sm text-text/70">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-
+            {Math.min(currentPage * ITEMS_PER_PAGE, filteredSessions.length)} of{' '}
+            {filteredSessions.length} sessions
+          </div>
+
+          <nav className="flex items-center gap-2" aria-label="Pagination">
+            <Button
+              variant="ghost"
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+              aria-label="Go to previous page"
+            >
+              Previous
+            </Button>
+
+            {/* Page numbers */}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                // Show first, last, current, and adjacent pages
+                const showPage =
+                  page === 1 ||
+                  page === totalPages ||
+                  Math.abs(page - currentPage) <= 1;
+
+                // Show ellipsis
+                const showEllipsisBefore =
+                  page === currentPage - 1 && currentPage > 3;
+                const showEllipsisAfter =
+                  page === currentPage + 1 && currentPage < totalPages - 2;
+
+                if (!showPage) {
+                  if (
+                    (page === 2 && currentPage > 3) ||
+                    (page === totalPages - 1 && currentPage < totalPages - 2)
+                  ) {
+                    return (
+                      <span
+                        key={`ellipsis-${page}`}
+                        className="px-2 text-text/50"
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+                  return null;
+                }
+
+                return (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`w-10 h-10 flex items-center justify-center border-3 border-border font-heading font-bold transition-colors ${
+                      page === currentPage
+                        ? 'bg-primary text-text'
+                        : 'bg-surface text-text hover:bg-primary/20'
+                    }`}
+                    aria-label={`Go to page ${page}`}
+                    aria-current={page === currentPage ? 'page' : undefined}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+            </div>
+
+            <Button
+              variant="ghost"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              aria-label="Go to next page"
+            >
+              Next
+            </Button>
+          </nav>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {filteredSessions.length === 0 && (
         // Empty state
         <Card className="text-center py-12">
           <div className="space-y-4">
