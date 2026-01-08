@@ -13,7 +13,6 @@ export default function ActiveSession() {
   const navigate = useNavigate();
   const {
     getSession,
-    currentSession,
     setCurrentSession,
     updateSession,
     updateTopic,
