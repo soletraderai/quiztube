@@ -5,6 +5,8 @@ import Card from '../components/ui/Card';
 import ProgressBar from '../components/ui/ProgressBar';
 import Toast from '../components/ui/Toast';
 import { useSessionStore } from '../stores/sessionStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { evaluateAnswer } from '../services/gemini';
 
 type SessionPhase = 'question' | 'feedback' | 'summary';
 
@@ -19,6 +21,7 @@ export default function ActiveSession() {
     updateQuestion,
     updateScore,
   } = useSessionStore();
+  const { settings } = useSettingsStore();
 
   const [phase, setPhase] = useState<SessionPhase>('question');
   const [answer, setAnswer] = useState('');
@@ -27,11 +30,54 @@ export default function ActiveSession() {
 
   const session = sessionId ? getSession(sessionId) : undefined;
 
+  // Intercept navigation link clicks while session is active
+  useEffect(() => {
+    const handleNavClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a[href]');
+
+      if (link && session?.status === 'active') {
+        const href = link.getAttribute('href');
+        // Only intercept internal navigation links (not external links or session links)
+        if (href && !href.startsWith('http') && !href.includes('/session/')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const confirmed = window.confirm(
+            'You have an active learning session. Are you sure you want to leave? Your progress will be saved.'
+          );
+          if (confirmed) {
+            navigate(href);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('click', handleNavClick, true);
+    return () => document.removeEventListener('click', handleNavClick, true);
+  }, [session?.status, navigate]);
+
+  // Warn before leaving with browser navigation (refresh, close tab)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (session?.status === 'active') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [session?.status]);
+
   useEffect(() => {
     if (session && session.status !== 'completed') {
       setCurrentSession(session);
+      // Update session to active status
+      if (session.status === 'overview') {
+        updateSession(session.id, { status: 'active' });
+      }
     }
-  }, [session, setCurrentSession]);
+  }, [session?.id, session?.status, setCurrentSession, updateSession]);
 
   // Redirect if session not found or already completed
   if (!session) {
@@ -77,17 +123,31 @@ export default function ActiveSession() {
     setLoading(true);
 
     try {
-      // TODO: Call Gemini API for feedback
-      // For now, simulate feedback generation
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Call Gemini API for feedback
+      let feedback: string;
 
-      const mockFeedback = `Good thinking! Your answer touches on key aspects of the topic.
-        Consider also thinking about how this relates to the broader context discussed in the video.`;
+      if (settings.geminiApiKey) {
+        try {
+          feedback = await evaluateAnswer(
+            settings.geminiApiKey,
+            currentTopic,
+            currentQuestion,
+            answer
+          );
+        } catch (apiError) {
+          console.error('Gemini API error:', apiError);
+          // Fallback to generic feedback if API fails
+          feedback = `Thank you for your answer! You've made a thoughtful response about "${currentTopic.title}". Consider reviewing the topic summary for additional insights.`;
+        }
+      } else {
+        // No API key - use generic feedback
+        feedback = `Thank you for your answer! You've made a thoughtful response about "${currentTopic.title}". Consider reviewing the topic summary for additional insights.`;
+      }
 
       // Update question with answer and feedback
       updateQuestion(session.id, currentTopicIndex, currentQuestionIndex, {
         userAnswer: answer,
-        feedback: mockFeedback,
+        feedback: feedback,
         answeredAt: Date.now(),
       });
 

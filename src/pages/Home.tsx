@@ -4,18 +4,22 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
+import ProgressBar from '../components/ui/ProgressBar';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSessionStore } from '../stores/sessionStore';
+import { createSession } from '../services/session';
+import type { ProcessingState } from '../types';
 
 export default function Home() {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const navigate = useNavigate();
-  const { isConfigured } = useSettingsStore();
-  const { library } = useSessionStore();
+  const { settings, isConfigured } = useSettingsStore();
+  const { library, createSession: saveSession } = useSessionStore();
 
   // Get recent sessions (last 5)
   const recentSessions = library.sessions.slice(0, 5);
@@ -58,22 +62,35 @@ export default function Home() {
     }
 
     setLoading(true);
+    setProcessingState({
+      step: 'fetching_video',
+      progress: 0,
+      message: 'Starting...',
+    });
 
     try {
-      // TODO: Implement session creation
-      // For now, just navigate to a placeholder
-      setToast({ message: 'Processing video...', type: 'info' });
+      // Create the session using our services
+      const session = await createSession(
+        trimmedUrl,
+        settings.geminiApiKey,
+        (state) => setProcessingState(state)
+      );
 
-      // Simulate processing delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Save session to store
+      saveSession(session);
 
-      // Navigate to session overview (will be implemented)
-      // navigate(`/session/${newSessionId}/overview`);
+      setToast({ message: 'Session created successfully!', type: 'success' });
+      setUrl('');
 
-      setToast({ message: 'Session creation will be implemented', type: 'info' });
+      // Navigate to session overview
+      setTimeout(() => {
+        navigate(`/session/${session.id}/overview`);
+      }, 500);
     } catch (err) {
-      setError('Failed to process video. Please try again.');
-      setToast({ message: 'Error processing video', type: 'error' });
+      const errorMessage = err instanceof Error ? err.message : 'Failed to process video';
+      setError(errorMessage);
+      setToast({ message: errorMessage, type: 'error' });
+      setProcessingState(null);
     } finally {
       setLoading(false);
     }
@@ -118,11 +135,24 @@ export default function Home() {
             }}
             error={error}
             required
+            disabled={loading}
             aria-describedby="url-hint"
           />
           <p id="url-hint" className="text-sm text-text/60">
             Paste a YouTube video URL to start learning
           </p>
+
+          {/* Processing Progress */}
+          {processingState && (
+            <div className="space-y-2">
+              <ProgressBar
+                current={processingState.progress}
+                total={100}
+                label={processingState.message}
+                showPercentage={false}
+              />
+            </div>
+          )}
 
           <Button
             type="submit"
