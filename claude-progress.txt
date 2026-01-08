@@ -1,5 +1,74 @@
 # YouTube Learning Tool - Progress Report
 
+## Session 16 (Feature Verification Agent) - COMPLETED
+
+### Date: January 9, 2026
+
+---
+
+## Summary
+
+Verified and marked Feature 111 (Difficulty selection affects API calls) as passing. Progress increased from 281/302 (93.0%) to 282/302 (93.4%).
+
+All remaining 20 features require either:
+- Valid Gemini API key (for AI-generated content)
+- Knowledge base implementation (never populated - sources array always empty)
+- Transcript extraction (blocked by CORS limitations)
+- Features not implemented (pagination, date filtering, breadcrumbs)
+- Video duration from YouTube API (not available via oEmbed)
+
+---
+
+## Session 16 Accomplishments
+
+### Features Verified (1 new passing)
+- **111: Difficulty selection affects API calls** - PASSED
+  - Verified "Easier" and "Harder" buttons toggle correctly with visual feedback
+  - Verified toast notifications appear when difficulty is changed ("Difficulty set to easier/harder")
+  - Verified difficulty is stored in session state
+  - Verified difficulty is passed to `evaluateAnswer()` function
+  - Verified API prompt includes difficulty-specific evaluation instructions
+  - Code implementation is complete in `gemini.ts` lines 411-427
+
+### Regression Testing
+- Verified home page loads correctly
+- Verified Settings page works (save/load)
+- Verified Logo click returns to home
+- Created test session with YouTube video
+- Completed a full question-answer cycle with difficulty toggle
+
+### Remaining 20 Features (All Blocked)
+
+**Requires Valid Gemini API Key (4):**
+- 18: Generate more questions in Dig Deeper
+- 78: Feedback reflects actual answer quality
+- 103: Gemini API integration works
+- 292: Feedback evaluation is contextual
+
+**Knowledge Base Not Implemented (7):**
+- 31: Knowledge base building from video
+- 75: Knowledge base sources are real
+- 102: Frontend receives real transcript data (part KB)
+- 105: Knowledge base fetch works
+- 218: Source snippets clickable
+- 220: Feedback references knowledge base
+- 266: Knowledge base limited depth
+- 282: Session notes show source type
+
+**Transcript Extraction CORS Limitation (2):**
+- 223: Questions generated from transcript
+- 224: Topic titles from video content
+
+**UI Features Not Implemented (6):**
+- 54: Breadcrumb navigation accuracy
+- 61: Pagination in library navigates correctly
+- 136: Pagination resets when filter changes
+- 183: Video duration displays correctly (oEmbed limitation)
+- 255: Server-side validation fallback (client-only app)
+- 263: Session overview can be adjusted
+
+---
+
 ## Session 15 (Feature Implementation Agent) - COMPLETED
 
 ### Date: January 9, 2026
