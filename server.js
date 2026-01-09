@@ -3,7 +3,7 @@
 
 import express from 'express';
 import cors from 'cors';
-import { YoutubeTranscript } from 'youtube-transcript';
+import { YouTubeTranscriptApi } from 'youtube-captions-api';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -87,6 +87,9 @@ app.get('/api/video/:videoId', async (req, res) => {
   }
 });
 
+// Create transcript API instance
+const transcriptApi = new YouTubeTranscriptApi();
+
 // Transcript extraction endpoint
 app.get('/api/transcript/:videoId', async (req, res) => {
   const { videoId } = req.params;
@@ -98,28 +101,30 @@ app.get('/api/transcript/:videoId', async (req, res) => {
   console.log(`[Transcript API] Fetching transcript for video: ${videoId}`);
 
   try {
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+    const result = await transcriptApi.fetch(videoId);
 
-    if (!transcript || transcript.length === 0) {
+    if (!result || !result.snippets || result.snippets.length === 0) {
       return res.status(404).json({
         error: 'No transcript available for this video',
         videoId
       });
     }
 
-    console.log(`[Transcript API] Successfully fetched ${transcript.length} segments for ${videoId}`);
+    console.log(`[Transcript API] Successfully fetched ${result.snippets.length} segments for ${videoId}`);
 
     // Transform to our expected format
-    const segments = transcript.map((item, index) => ({
+    const segments = result.snippets.map((item) => ({
       text: item.text,
-      offset: Math.round(item.offset * 1000), // Convert to milliseconds
-      duration: Math.round(item.duration * 1000), // Convert to milliseconds
+      offset: Math.round(item.start * 1000), // Convert seconds to milliseconds
+      duration: Math.round(item.duration * 1000), // Convert seconds to milliseconds
     }));
 
     res.json({
       videoId,
       segments,
-      fullText: segments.map(s => s.text).join(' ')
+      fullText: segments.map(s => s.text).join(' '),
+      language: result.language_code,
+      isGenerated: result.is_generated
     });
 
   } catch (error) {
@@ -127,14 +132,21 @@ app.get('/api/transcript/:videoId', async (req, res) => {
     console.error(`[Transcript API] Full error:`, error);
 
     // Handle specific error types
-    if (error.message?.includes('Could not retrieve')) {
+    if (error.name === 'TranscriptsDisabled' || error.message?.includes('Transcripts are disabled')) {
+      return res.status(404).json({
+        error: 'Transcripts are disabled for this video',
+        videoId
+      });
+    }
+
+    if (error.message?.includes('Could not retrieve') || error.message?.includes('No transcript found')) {
       return res.status(404).json({
         error: 'Transcript not available. The video may not have captions.',
         videoId
       });
     }
 
-    if (error.message?.includes('unavailable') || error.message?.includes('private')) {
+    if (error.message?.includes('unavailable') || error.message?.includes('private') || error.message?.includes('unplayable')) {
       return res.status(403).json({
         error: 'Video is unavailable or private',
         videoId
