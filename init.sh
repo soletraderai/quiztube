@@ -69,14 +69,39 @@ echo ""
 echo -e "${GREEN}Dependencies installed successfully!${NC}"
 echo ""
 echo "=========================================="
-echo "  Starting Development Server"
+echo "  Starting Development Servers"
 echo "=========================================="
 echo ""
-echo -e "${YELLOW}The application will be available at:${NC}"
-echo -e "${GREEN}  http://localhost:5173${NC}"
+
+# Start the transcript proxy server in the background
+echo -e "${YELLOW}Starting transcript proxy server...${NC}"
+node server.js &
+PROXY_PID=$!
+sleep 2
+
+# Check if proxy server started successfully
+if kill -0 $PROXY_PID 2>/dev/null; then
+    echo -e "${GREEN}Transcript proxy server running on http://localhost:3001${NC}"
+else
+    echo -e "${YELLOW}Warning: Transcript proxy server failed to start. Transcripts will use fallback mode.${NC}"
+fi
+
 echo ""
-echo "Press Ctrl+C to stop the server"
+echo -e "${YELLOW}Starting Vite development server...${NC}"
+echo -e "${GREEN}Frontend will be available at: http://localhost:5173${NC}"
+echo -e "${GREEN}Transcript API at: http://localhost:3001/api/transcript/:videoId${NC}"
+echo ""
+echo "Press Ctrl+C to stop all servers"
 echo ""
 
-# Start the development server
+# Trap to cleanup background process on exit
+cleanup() {
+    echo ""
+    echo "Shutting down servers..."
+    kill $PROXY_PID 2>/dev/null
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
+
+# Start the Vite development server (foreground)
 npm run dev

@@ -49,15 +49,58 @@ export async function fetchVideoMetadata(videoId: string): Promise<VideoMetadata
   };
 }
 
-// Fetch transcript using a public transcript service
-// Note: In production, you would use youtube-transcript or similar library
-// For this implementation, we'll use a proxy approach
-export async function fetchTranscript(_videoId: string): Promise<TranscriptSegment[]> {
-  // Note: Direct transcript access is not available from the browser due to CORS
-  // In a production app, this would be done server-side
-  // For now, Gemini will work with video metadata only
-  console.log('Transcript extraction skipped - using Gemini for content analysis based on video metadata');
-  return [];
+// Proxy server URL for transcript extraction (bypasses CORS)
+const TRANSCRIPT_PROXY_URL = 'http://localhost:3001';
+
+// Check if the transcript proxy server is available
+async function isProxyAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`${TRANSCRIPT_PROXY_URL}/api/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(2000) // 2 second timeout
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Fetch transcript using the proxy server (bypasses CORS)
+// Falls back to empty array if proxy is not available
+export async function fetchTranscript(videoId: string): Promise<TranscriptSegment[]> {
+  // First check if proxy server is available
+  const proxyAvailable = await isProxyAvailable();
+
+  if (!proxyAvailable) {
+    console.log('Transcript proxy server not available - using Gemini for content analysis based on video metadata');
+    return [];
+  }
+
+  try {
+    console.log(`Fetching transcript from proxy server for video: ${videoId}`);
+
+    const response = await fetch(`${TRANSCRIPT_PROXY_URL}/api/transcript/${videoId}`);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.warn(`Transcript fetch failed: ${errorData.error || response.statusText}`);
+      return [];
+    }
+
+    const data = await response.json();
+
+    if (!data.segments || data.segments.length === 0) {
+      console.log('No transcript segments returned from proxy');
+      return [];
+    }
+
+    console.log(`Successfully fetched ${data.segments.length} transcript segments`);
+    return data.segments as TranscriptSegment[];
+
+  } catch (error) {
+    console.warn('Error fetching transcript from proxy:', error);
+    return [];
+  }
 }
 
 // Alternative: Generate topics directly from video metadata using Gemini
