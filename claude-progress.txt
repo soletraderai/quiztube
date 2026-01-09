@@ -4938,3 +4938,81 @@ The app provides excellent fallback behavior:
 - All data persists in localStorage
 
 ---
+
+## Session 58 (Regression Testing) - COMPLETED
+
+### Date: January 9, 2026
+
+---
+
+## Summary
+
+Performed regression testing on 3 passing features - all passed. Re-investigated Feature #102 (transcript extraction) to confirm it remains blocked by YouTube API changes. The youtube-transcript library v1.2.1 (latest version) returns empty arrays for all videos.
+
+---
+
+## Session 58 Accomplishments
+
+### Regression Testing
+
+Tested 3 random passing features:
+
+1. Feature #237: Paste URL works correctly - PASS
+   - Pasted YouTube URL into input field
+   - URL appeared correctly
+   - Session created successfully with "Me at the zoo" video
+   - Session overview loaded with correct metadata
+
+2. Feature #214: YouTube URL various formats - PASS
+   - Tested youtube.com/watch?v=ID format - works
+   - Tested youtu.be/ID short format - works
+   - Tested youtube.com/embed/ID format - works
+   - All formats recognized and sessions created successfully
+
+3. Feature #140: Very long search string handled - PASS
+   - Entered 500+ character search string in Library
+   - App did not crash
+   - Showed "0 sessions (filtered)" and "No matching sessions"
+   - Clear button appeared to reset search
+   - App remained responsive
+
+### Transcript Investigation
+
+Re-verified Feature #102 blocker:
+- Started proxy server manually (port 3001)
+- Tested transcript API with multiple videos:
+  - "Me at the zoo" (jNQXAC9IVRw) - empty array
+  - Rick Astley (dQw4w9WgXcQ) - empty array
+  - TED Talk (Ks-_Mh1QhMc) - empty array
+- Created test script to verify youtube-transcript library directly
+- Library version 1.2.1 is the latest available
+- Library returns empty arrays for all videos tested
+
+Conclusion: YouTube has changed their transcript delivery mechanism. The youtube-transcript npm library no longer works. This is an external dependency blocker, not a code bug.
+
+---
+
+## Current State
+
+### Progress
+- Total: 302 features
+- Passing: 295 (97.7%)
+- Remaining: 7 (all blocked by external dependencies)
+
+### App Status
+- Frontend: Running on port 5178
+- Proxy server: Running on port 3001
+- All core functionality working
+
+---
+
+## Notes for Next Agent
+
+The app is functionally complete at 97.7%. All 7 remaining features require external dependencies that cannot be satisfied:
+- YouTube transcript API blocked (returns empty)
+- Gemini API requires valid key
+- Server-side features need backend
+
+No code changes needed - app works well with fallback mechanisms.
+
+---
