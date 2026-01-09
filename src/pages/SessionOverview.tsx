@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
 import { useSessionStore } from '../stores/sessionStore';
+import { formatDuration } from '../services/youtube';
 
 export default function SessionOverview() {
   const { sessionId } = useParams();
@@ -146,12 +147,19 @@ export default function SessionOverview() {
                   }
                 </span>
               </div>
+              {session.video.duration > 0 && (
+                <div className="bg-accent/20 border-2 border-border px-3 py-1">
+                  <span className="font-heading font-semibold">
+                    {formatDuration(session.video.duration)}
+                  </span>
+                </div>
+              )}
               <div className="bg-surface border-2 border-border px-3 py-1">
                 <span className="font-heading font-semibold">
                   ~{isAdjustMode && selectedTopics.size < session.topics.length
                     ? selectedEstimatedMinutes
                     : estimatedMinutes
-                  } min
+                  } min learning
                 </span>
               </div>
             </div>

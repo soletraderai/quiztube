@@ -87,8 +87,10 @@ export async function createSession(
     throw new Error(`Failed to generate learning content: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
-  // Update video metadata with estimated duration
-  metadata.duration = estimatedDuration * 60; // Convert to seconds
+  // Only set duration from estimate if actual duration wasn't fetched
+  if (!metadata.duration || metadata.duration === 0) {
+    metadata.duration = estimatedDuration * 60; // Convert to seconds
+  }
 
   // Step 6: Create session object
   onProgress?.({

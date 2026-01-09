@@ -1,6 +1,22 @@
 // YouTube service for extracting video metadata and transcripts
 import type { VideoMetadata, TranscriptSegment } from '../types';
 
+// Proxy server URL for transcript and video metadata extraction (bypasses CORS)
+const TRANSCRIPT_PROXY_URL = 'http://localhost:3001';
+
+// Check if the transcript proxy server is available
+async function isProxyAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`${TRANSCRIPT_PROXY_URL}/api/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(2000) // 2 second timeout
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Extract video ID from various YouTube URL formats
 export function extractVideoId(url: string): string | null {
   const patterns = [
@@ -39,30 +55,30 @@ export async function fetchVideoMetadata(videoId: string): Promise<VideoMetadata
 
   const data = await response.json();
 
+  // Try to fetch actual duration from proxy server
+  let duration = 0;
+  try {
+    const proxyAvailable = await isProxyAvailable();
+    if (proxyAvailable) {
+      const durationResponse = await fetch(`${TRANSCRIPT_PROXY_URL}/api/video/${videoId}`);
+      if (durationResponse.ok) {
+        const videoData = await durationResponse.json();
+        duration = videoData.duration || 0;
+        console.log(`Fetched actual video duration: ${duration} seconds`);
+      }
+    }
+  } catch (error) {
+    console.warn('Could not fetch video duration from proxy:', error);
+  }
+
   return {
     url: url,
     title: data.title || 'Untitled Video',
     thumbnailUrl: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-    duration: 0, // oEmbed doesn't provide duration, will be estimated from transcript
+    duration: duration, // Actual duration from proxy, or 0 if unavailable
     channel: data.author_name || 'Unknown Channel',
     publishDate: undefined, // Not available from oEmbed
   };
-}
-
-// Proxy server URL for transcript extraction (bypasses CORS)
-const TRANSCRIPT_PROXY_URL = 'http://localhost:3001';
-
-// Check if the transcript proxy server is available
-async function isProxyAvailable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${TRANSCRIPT_PROXY_URL}/api/health`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(2000) // 2 second timeout
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
 
 // Fetch transcript using the proxy server (bypasses CORS)
@@ -159,6 +175,20 @@ export function parseTranscriptSegments(rawTranscript: string): TranscriptSegmen
 // Combine transcript segments into a full text
 export function combineTranscript(segments: TranscriptSegment[]): string {
   return segments.map(s => s.text).join(' ');
+}
+
+// Format duration in seconds to MM:SS or HH:MM:SS format
+export function formatDuration(seconds: number): string {
+  if (seconds <= 0) return '0:00';
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 // Calculate estimated video duration from transcript
