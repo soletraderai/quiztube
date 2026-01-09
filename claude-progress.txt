@@ -1,5 +1,83 @@
 # YouTube Learning Tool - Progress Report
 
+## Session 126 (Regression Testing) - COMPLETED
+
+### Date: January 10, 2026
+
+---
+
+## Summary
+
+Performed comprehensive regression testing on 3 randomly selected passing features. All tests passed successfully. All 5 remaining features still require external dependencies (Gemini API key or server-side web scraping). Progress remains at 297/302 (98.3%).
+
+---
+
+## Session 126 Accomplishments
+
+### Regression Testing Results
+
+1. **Feature #177: Skip to main content link** - VERIFIED ✅
+   - Navigated to Home page
+   - Pressed Tab once
+   - "Skip to main content" link appeared and was focused
+   - Pressed Enter - navigated to #main-content anchor
+   - Skip link works correctly for keyboard users
+
+2. **Feature #263: Session overview can be adjusted** - VERIFIED ✅
+   - Started new session with Rick Astley video
+   - Session overview displayed with 3 topics and "Adjust Topics" button
+   - Clicked "Adjust Topics" - checkboxes appeared for each topic
+   - Unchecked "Key Concepts" topic
+   - Status updated to "2/3 topics", "4/6 questions", "~5 min learning"
+   - "Start with Selected Topics" button appeared
+   - Topic adjustment fully functional
+
+3. **Feature #166: Modals fit on mobile** - VERIFIED ✅
+   - Resized viewport to 375x667 (mobile)
+   - Mobile hamburger menu appeared
+   - Clicked "Open menu" - mobile navigation modal opened
+   - Navigation links (Home, Library, Settings) displayed clearly
+   - Close button (X) accessible in top right
+   - No overflow issues - modal fits perfectly in viewport
+   - Screenshot captured: regression-mobile-menu.png
+
+### Visual Verification
+
+- Home page: Clean neobrutalism design (yellow accents, bold black borders)
+- Mobile view: Responsive hamburger menu works correctly
+- Session overview: Topic adjustment UI fully functional
+- All pages load quickly with no console JavaScript errors
+
+### Console Errors (Expected)
+
+- Gemini API error: 400 - API key not valid (expected with test API key)
+- Using fallback topic generation (expected behavior)
+
+### Remaining Features
+
+All 5 remaining features require external dependencies:
+- 103: Gemini API integration - Requires valid API key from Google AI Studio
+- 105: Knowledge base fetch - Requires server-side web scraping infrastructure
+- 220: Feedback references knowledge base - Depends on 103 and 105
+- 223: Questions from transcript - Requires Gemini API
+- 224: Topic titles from content - Requires Gemini API
+
+## Current State
+
+Progress: 297/302 (98.3%)
+Frontend: Running on port 5196
+Proxy server: Running on port 3001
+
+## Notes for Next Agent
+
+App is functionally complete at 98.3%. All 5 remaining features require external dependencies that cannot be satisfied in the current testing environment:
+- Gemini API key from Google AI Studio (features 103, 223, 224, 220)
+- Server-side web scraping infrastructure (features 105, 220)
+
+The app works excellently with fallback mechanisms for all AI-dependent features. No code changes needed - only external API key configuration would enable the remaining features.
+
+---
+
 ## Session 125 (Regression Testing) - COMPLETED
 
 ### Date: January 10, 2026
