@@ -17,6 +17,41 @@ const getAuthHeaders = () => {
 
 // API sync functions for cloud persistence
 const sessionApi = {
+  // Fetch all sessions from cloud
+  async fetchSessions(): Promise<Session[]> {
+    const headers = getAuthHeaders();
+    if (!headers) return []; // Not authenticated
+
+    try {
+      const response = await fetch(`${API_BASE}/sessions`, {
+        headers,
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Parse sessionData from each cloud session
+        const cloudSessions: Session[] = [];
+        for (const s of data.sessions || []) {
+          if (s.sessionData) {
+            try {
+              const sessionData = typeof s.sessionData === 'string'
+                ? JSON.parse(s.sessionData)
+                : s.sessionData;
+              cloudSessions.push(sessionData);
+            } catch (e) {
+              console.warn('Failed to parse session data:', e);
+            }
+          }
+        }
+        return cloudSessions;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch cloud sessions:', error);
+    }
+    return [];
+  },
+
   // Save session to database
   async saveSession(session: Session): Promise<void> {
     const headers = getAuthHeaders();
@@ -126,6 +161,8 @@ interface SessionState {
   library: Library;
   currentSession: Session | null;
   processingState: ProcessingState | null;
+  isSyncing: boolean;
+  lastSyncedAt: number | null;
 
   // Session management
   createSession: (session: Session) => void;
@@ -146,6 +183,9 @@ interface SessionState {
   // Score updates
   updateScore: (sessionId: string, updates: Partial<Session['score']>) => void;
 
+  // Cloud sync
+  syncWithCloud: () => Promise<void>;
+
   // Clear all data
   clearLibrary: () => void;
 }
@@ -158,6 +198,8 @@ export const useSessionStore = create<SessionState>()(
       library: { sessions: [] },
       currentSession: null,
       processingState: null,
+      isSyncing: false,
+      lastSyncedAt: null,
 
       createSession: (session) => {
         // Sync to cloud database
@@ -296,6 +338,66 @@ export const useSessionStore = create<SessionState>()(
                 }
               : state.currentSession,
         })),
+
+      // Fetch sessions from cloud and merge with local sessions
+      syncWithCloud: async () => {
+        const { isSyncing } = get();
+        if (isSyncing) return; // Prevent concurrent syncs
+
+        set({ isSyncing: true });
+
+        try {
+          const cloudSessions = await sessionApi.fetchSessions();
+
+          if (cloudSessions.length > 0) {
+            set((state) => {
+              // Create a map of local sessions by ID for quick lookup
+              const localSessionMap = new Map(
+                state.library.sessions.map(s => [s.id, s])
+              );
+
+              // Merge cloud sessions with local, preferring newer versions
+              const mergedSessions: Session[] = [];
+              const seenIds = new Set<string>();
+
+              // First, add all cloud sessions
+              for (const cloudSession of cloudSessions) {
+                const localSession = localSessionMap.get(cloudSession.id);
+
+                if (localSession) {
+                  // If exists locally, use the one with more recent updates
+                  // Compare by createdAt or any update indicator
+                  const useCloud = cloudSession.createdAt >= localSession.createdAt;
+                  mergedSessions.push(useCloud ? cloudSession : localSession);
+                } else {
+                  // Cloud session doesn't exist locally, add it
+                  mergedSessions.push(cloudSession);
+                }
+                seenIds.add(cloudSession.id);
+              }
+
+              // Add local sessions that aren't in cloud
+              for (const localSession of state.library.sessions) {
+                if (!seenIds.has(localSession.id)) {
+                  mergedSessions.push(localSession);
+                }
+              }
+
+              // Sort by createdAt descending (newest first)
+              mergedSessions.sort((a, b) => b.createdAt - a.createdAt);
+
+              return {
+                library: { sessions: mergedSessions },
+                lastSyncedAt: Date.now(),
+              };
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to sync with cloud:', error);
+        } finally {
+          set({ isSyncing: false });
+        }
+      },
 
       clearLibrary: () =>
         set({
