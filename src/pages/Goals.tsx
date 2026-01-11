@@ -8,6 +8,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import { GoalCardSkeleton } from '../components/ui/Skeleton';
 import { StaggeredItem } from '../components/ui/StaggeredList';
 import CompletionCheckmark from '../components/ui/CompletionCheckmark';
+import Tooltip from '../components/ui/Tooltip';
 import { useAuthStore } from '../stores/authStore';
 
 interface Goal {
@@ -780,36 +781,41 @@ export default function Goals() {
                 <div className="flex items-center gap-2">
                   {goal.status === 'ACTIVE' && (
                     <>
-                      <button
-                        onClick={() => handleMarkComplete(goal.id)}
-                        className="text-text/40 hover:text-success transition-colors"
-                        aria-label="Mark goal complete"
-                        title="Mark as completed"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleEditGoal(goal)}
-                        className="text-text/40 hover:text-primary transition-colors"
-                        aria-label="Edit goal"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
+                      <Tooltip content="Mark as completed" position="top">
+                        <button
+                          onClick={() => handleMarkComplete(goal.id)}
+                          className="text-text/40 hover:text-success transition-colors"
+                          aria-label="Mark goal complete"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Edit goal" position="top">
+                        <button
+                          onClick={() => handleEditGoal(goal)}
+                          className="text-text/40 hover:text-primary transition-colors"
+                          aria-label="Edit goal"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      </Tooltip>
                     </>
                   )}
-                  <button
-                    onClick={() => handleDeleteGoal(goal.id)}
-                    className="text-text/40 hover:text-error transition-colors"
-                    aria-label="Delete goal"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <Tooltip content="Delete goal" position="top">
+                    <button
+                      onClick={() => handleDeleteGoal(goal.id)}
+                      className="text-text/40 hover:text-error transition-colors"
+                      aria-label="Delete goal"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
 
@@ -830,13 +836,17 @@ export default function Goals() {
               {/* Milestones */}
               <div className="flex gap-2 mb-4">
                 {goal.milestones.map((milestone) => (
-                  <div
+                  <Tooltip
                     key={milestone.id}
-                    className={`flex-1 h-2 border border-border ${
-                      milestone.reachedAt ? 'bg-success' : 'bg-surface'
-                    }`}
-                    title={`${milestone.milestonePercentage}% ${milestone.reachedAt ? 'reached' : 'pending'}`}
-                  />
+                    content={`${milestone.milestonePercentage}% ${milestone.reachedAt ? 'reached' : 'pending'}`}
+                    position="bottom"
+                  >
+                    <div
+                      className={`flex-1 h-2 border border-border cursor-help ${
+                        milestone.reachedAt ? 'bg-success' : 'bg-surface'
+                      }`}
+                    />
+                  </Tooltip>
                 ))}
               </div>
 

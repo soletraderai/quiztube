@@ -4,6 +4,7 @@ import ErrorBoundary from './ErrorBoundary';
 import OfflineBanner from './OfflineBanner';
 import Breadcrumb from './Breadcrumb';
 import PageTransition from './PageTransition';
+import Tooltip from './Tooltip';
 import { useAuthStore } from '../../stores/authStore';
 
 const API_BASE = 'http://localhost:3001/api';
@@ -215,16 +216,17 @@ export default function Layout() {
 
               {/* Subscription Tier Badge */}
               {isAuthenticated() && user && (
-                <span
-                  className={`px-3 py-1 font-heading font-bold text-sm border-2 border-border ${
-                    user.tier === 'PRO'
-                      ? 'bg-secondary text-text'
-                      : 'bg-surface text-text/70'
-                  }`}
-                  title={`Your subscription tier: ${user.tier}`}
-                >
-                  {user.tier}
-                </span>
+                <Tooltip content={`Your subscription tier: ${user.tier}`} position="bottom">
+                  <span
+                    className={`px-3 py-1 font-heading font-bold text-sm border-2 border-border cursor-help ${
+                      user.tier === 'PRO'
+                        ? 'bg-secondary text-text'
+                        : 'bg-surface text-text/70'
+                    }`}
+                  >
+                    {user.tier}
+                  </span>
+                </Tooltip>
               )}
             </nav>
 
