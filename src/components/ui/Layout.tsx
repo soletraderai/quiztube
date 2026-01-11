@@ -214,6 +214,24 @@ export default function Layout() {
                 </Link>
               ))}
 
+              {/* Auth buttons for anonymous users */}
+              {!isAuthenticated() && (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    className="px-4 py-2 font-heading font-semibold border-3 border-border bg-surface hover:bg-primary hover:shadow-brutal transition-all"
+                  >
+                    Log In
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className="px-4 py-2 font-heading font-semibold border-3 border-border bg-primary shadow-brutal hover:shadow-brutal-lg transition-all"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              )}
+
               {/* Subscription Tier Badge */}
               {isAuthenticated() && user && (
                 <Tooltip content={`Your subscription tier: ${user.tier}`} position="bottom">
@@ -270,6 +288,26 @@ export default function Layout() {
               aria-label="Mobile navigation"
             >
               <div className="flex flex-col space-y-2">
+                {/* Auth buttons for anonymous users - Mobile */}
+                {!isAuthenticated() && (
+                  <div className="px-4 py-2 flex flex-col gap-2">
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-4 py-3 font-heading font-semibold text-center border-3 border-border bg-surface hover:bg-primary transition-all"
+                    >
+                      Log In
+                    </Link>
+                    <Link
+                      to="/signup"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-4 py-3 font-heading font-semibold text-center border-3 border-border bg-primary shadow-brutal transition-all"
+                    >
+                      Sign Up
+                    </Link>
+                  </div>
+                )}
+
                 {/* Subscription Tier Badge - Mobile */}
                 {isAuthenticated() && user && (
                   <div className="px-4 py-2">

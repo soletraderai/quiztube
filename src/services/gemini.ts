@@ -1,21 +1,9 @@
 // Gemini AI service for question generation and answer evaluation
-import type { VideoMetadata, Topic, Question, ChatMessage } from '../types';
+// Uses server-side proxy to protect API key
+import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality } from '../types';
+import { useSettingsStore } from '../stores/settingsStore';
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-  }>;
-  error?: {
-    message: string;
-    code: number;
-  };
-}
+const AI_PROXY_URL = 'http://localhost:3001/api/ai/generate';
 
 // Custom error class for rate limiting
 export class RateLimitError extends Error {
@@ -28,26 +16,14 @@ export class RateLimitError extends Error {
   }
 }
 
-// Make a request to Gemini API
-async function callGemini(apiKey: string, prompt: string): Promise<string> {
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+// Make a request to AI via server-side proxy (no API key needed from frontend)
+async function callGemini(prompt: string): Promise<string> {
+  const response = await fetch(AI_PROXY_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 4096,
-      },
-    }),
+    body: JSON.stringify({ prompt }),
   });
 
   if (!response.ok) {
@@ -55,47 +31,23 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
 
     // Handle rate limiting specifically (HTTP 429)
     if (response.status === 429) {
-      const retryAfter = parseInt(response.headers.get('Retry-After') || '60', 10);
+      const retryAfter = errorData.retryAfter || 60;
       throw new RateLimitError(
-        `Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`,
+        errorData.error || `Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`,
         retryAfter
       );
     }
 
-    // Handle quota exceeded (common Gemini error for rate limits)
-    const errorMessage = errorData.error?.message || response.statusText;
-    if (errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate')) {
-      throw new RateLimitError(
-        'API quota exceeded. Please wait a few minutes before trying again.',
-        60
-      );
-    }
-
-    throw new Error(
-      `Gemini API error: ${response.status} - ${errorMessage}`
-    );
+    throw new Error(errorData.error || `AI API error: ${response.status}`);
   }
 
-  const data: GeminiResponse = await response.json();
+  const data = await response.json();
 
-  if (data.error) {
-    // Check for rate limit errors in response body
-    if (data.error.message.toLowerCase().includes('quota') ||
-        data.error.message.toLowerCase().includes('rate')) {
-      throw new RateLimitError(
-        'API rate limit reached. Please wait a few minutes before trying again.',
-        60
-      );
-    }
-    throw new Error(`Gemini API error: ${data.error.message}`);
+  if (!data.text) {
+    throw new Error('No response from AI service');
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) {
-    throw new Error('No response from Gemini API');
-  }
-
-  return text;
+  return data.text;
 }
 
 // Extract JSON from Gemini response (handles markdown code blocks)
@@ -301,7 +253,6 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
 
 // Generate topics and questions from video metadata
 export async function generateTopicsFromVideo(
-  apiKey: string,
   metadata: VideoMetadata,
   transcript?: string
 ): Promise<{ topics: Topic[]; estimatedDuration: number }> {
@@ -364,7 +315,7 @@ Format your response as JSON with this exact structure:
 The estimatedDuration should be in minutes. Make questions thought-provoking and focus on understanding concepts.`;
 
   try {
-    const response = await callGemini(apiKey, prompt);
+    const response = await callGemini(prompt);
     const jsonStr = extractJson(response);
     const data = JSON.parse(jsonStr);
 
@@ -399,6 +350,37 @@ The estimatedDuration should be in minutes. Make questions thought-provoking and
   }
 }
 
+// Get personality-aware openers for fallback feedback
+function getPersonalityOpeners(personality: TutorPersonality): { excellent: string; good: string; minimal: string; standard: string } {
+  const openers: Record<TutorPersonality, { excellent: string; good: string; minimal: string; standard: string }> = {
+    PROFESSOR: {
+      excellent: "Excellent scholarly response!",
+      good: "A solid academic effort.",
+      minimal: "I see you've begun to engage with the material.",
+      standard: "Thank you for your academic contribution.",
+    },
+    COACH: {
+      excellent: "Fantastic work! You're crushing it!",
+      good: "Great effort! You're making progress!",
+      minimal: "Thanks for giving it a shot!",
+      standard: "Good start! Keep building on this!",
+    },
+    DIRECT: {
+      excellent: "Correct. Well done.",
+      good: "Good. Some key points covered.",
+      minimal: "Brief response noted.",
+      standard: "Noted. Here's feedback:",
+    },
+    CREATIVE: {
+      excellent: "Like a master chef perfecting a recipe - excellent!",
+      good: "You're painting a good picture here!",
+      minimal: "Every journey starts with a single step!",
+      standard: "Interesting thoughts! Let's explore further.",
+    },
+  };
+  return openers[personality] || openers.COACH;
+}
+
 // Generate contextual fallback feedback when API is unavailable
 export function generateFallbackFeedback(
   topic: Topic,
@@ -408,6 +390,11 @@ export function generateFallbackFeedback(
 ): string {
   const wordCount = userAnswer.trim().split(/\s+/).length;
   const topicTitle = topic.title;
+
+  // Get current personality from settings store
+  const { settings } = useSettingsStore.getState();
+  const personality = settings.tutorPersonality || 'COACH';
+  const personalityOpeners = getPersonalityOpeners(personality);
 
   // Analyze answer quality indicators
   const hasExamples = /example|instance|such as|like|for instance/i.test(userAnswer);
@@ -439,8 +426,8 @@ export function generateFallbackFeedback(
   if (adjustedScore >= 6) {
     // Excellent answer
     opener = isComprehensive
-      ? "Excellent, comprehensive answer!"
-      : "Great thinking!";
+      ? personalityOpeners.excellent
+      : personalityOpeners.excellent;
     body = `You've demonstrated a solid understanding of "${topicTitle}". ${
       hasExamples ? "Your use of examples helps illustrate the concepts well. " : ""
     }${hasExplanation ? "Your explanations show critical thinking. " : ""}`;
@@ -449,7 +436,7 @@ export function generateFallbackFeedback(
       : "Keep up this level of thoughtful analysis!";
   } else if (adjustedScore >= 3) {
     // Good answer
-    opener = "Good effort!";
+    opener = personalityOpeners.good;
     body = `You've touched on some key points about "${topicTitle}". `;
     if (!hasExamples) {
       suggestion = "Try including specific examples to strengthen your answer.";
@@ -460,14 +447,14 @@ export function generateFallbackFeedback(
     }
   } else if (isMinimal) {
     // Minimal answer
-    opener = "Thanks for your response!";
+    opener = personalityOpeners.minimal;
     body = `You've started to engage with "${topicTitle}". `;
     suggestion = difficulty === 'easier'
       ? "Try expanding on your thoughts - even a few more sentences can help reinforce your understanding."
       : "Consider elaborating more on your answer. What examples can you think of? Why do you think this is important?";
   } else {
     // Standard answer
-    opener = "Thank you for your answer!";
+    opener = personalityOpeners.standard;
     body = `You've shared your thoughts on "${topicTitle}". `;
     suggestion = hasQuestions
       ? "Great that you're asking questions! The topic summary may help address some of them."
@@ -477,14 +464,38 @@ export function generateFallbackFeedback(
   return `${opener} ${body}${suggestion}`;
 }
 
+// Get personality-specific prompting instructions
+function getPersonalityInstructions(personality: TutorPersonality): string {
+  const personalityPrompts: Record<TutorPersonality, string> = {
+    PROFESSOR: `You are The Professor - respond in a formal, academic style with thorough explanations.
+Use proper terminology and provide context and theory. Example tone: "Let me explain this concept in depth. First, consider the underlying principles..."`,
+    COACH: `You are The Coach - respond in an encouraging, supportive style that celebrates progress.
+Be warm and motivating. Example tone: "Great effort! You're on the right track. Let's build on what you've learned..."`,
+    DIRECT: `You are The Direct - respond concisely and to the point, no fluff.
+Be efficient and focus on key facts. Example tone: "Correct. Key point: X does Y. Next topic."`,
+    CREATIVE: `You are The Creative - use analogies, stories, and creative examples to explain concepts.
+Make learning fun and memorable. Example tone: "Think of it like cooking a recipe - each ingredient (concept) builds on the last..."`,
+  };
+  return personalityPrompts[personality] || personalityPrompts.COACH;
+}
+
+// Get current tutor personality from settings
+function getCurrentPersonality(): TutorPersonality {
+  const { settings } = useSettingsStore.getState();
+  return settings.tutorPersonality || 'COACH';
+}
+
 // Evaluate user's answer to a question
 export async function evaluateAnswer(
-  apiKey: string,
   topic: Topic,
   question: Question,
   userAnswer: string,
   difficulty: 'standard' | 'easier' | 'harder' = 'standard'
 ): Promise<string> {
+  // Get current personality from settings
+  const personality = getCurrentPersonality();
+  const personalityInstructions = getPersonalityInstructions(personality);
+
   // Adjust evaluation criteria based on difficulty
   const difficultyInstructions = {
     easier: `The student is working at an easier difficulty level. Be more supportive and encouraging. Focus on the core understanding and don't be too strict about missing details. Highlight what they got right and provide gentle guidance.`,
@@ -492,7 +503,9 @@ export async function evaluateAnswer(
     harder: `The student is working at a harder difficulty level. Be more rigorous in your evaluation. Expect deeper understanding and more comprehensive answers. Challenge them to think more critically while still being encouraging.`,
   };
 
-  const prompt = `You are an educational assistant evaluating a student's answer.
+  const prompt = `${personalityInstructions}
+
+You are an educational assistant evaluating a student's answer.
 
 Topic: ${topic.title}
 Context: ${topic.summary}
@@ -504,16 +517,16 @@ Student's Answer: ${userAnswer}
 Difficulty Level: ${difficulty.toUpperCase()}
 ${difficultyInstructions[difficulty]}
 
-Please evaluate the answer and provide constructive feedback:
+Please evaluate the answer and provide constructive feedback in your personality style:
 1. Acknowledge what the student got right
 2. Gently correct any misconceptions
 3. Add any important points they may have missed
 4. Keep the feedback encouraging and educational
 
-Provide a concise response (2-4 sentences). Start with an assessment of their answer (like "Great answer!", "Good thinking!", or "Not quite, but...").`;
+Provide a concise response (2-4 sentences). Start with an assessment that matches your personality style.`;
 
   try {
-    const response = await callGemini(apiKey, prompt);
+    const response = await callGemini(prompt);
     return response.trim();
   } catch (error) {
     console.error('Error evaluating answer:', error);
@@ -566,7 +579,6 @@ function generateFallbackDeeperQuestion(topic: Topic, currentQuestion: Question,
 
 // Generate a new question with different difficulty
 export async function generateAlternateQuestion(
-  apiKey: string,
   topic: Topic,
   currentQuestion: Question,
   difficulty: 'easier' | 'harder'
@@ -598,7 +610,7 @@ ${difficultyGuidelines[difficulty]}
 Return ONLY the question text, nothing else.`;
 
   try {
-    const response = await callGemini(apiKey, prompt);
+    const response = await callGemini(prompt);
     return response.trim();
   } catch (error) {
     console.error('Error generating question:', error);
@@ -610,16 +622,21 @@ Return ONLY the question text, nothing else.`;
 
 // Handle dig deeper conversation
 export async function digDeeper(
-  apiKey: string,
   topic: Topic,
   conversation: ChatMessage[],
   userQuestion: string
 ): Promise<string> {
+  // Get current personality from settings
+  const personality = getCurrentPersonality();
+  const personalityInstructions = getPersonalityInstructions(personality);
+
   const conversationContext = conversation
     .map((m) => `${m.role === 'user' ? 'Student' : 'Assistant'}: ${m.content}`)
     .join('\n');
 
-  const prompt = `You are an educational assistant helping a student learn more about a topic.
+  const prompt = `${personalityInstructions}
+
+You are an educational assistant helping a student learn more about a topic.
 
 Topic: ${topic.title}
 Summary: ${topic.summary}
@@ -629,10 +646,10 @@ ${conversationContext || 'No previous messages'}
 
 Student's new question: ${userQuestion}
 
-Provide a helpful, educational response. Be thorough but concise. Use examples when helpful. If the question goes beyond the topic scope, try to relate it back or suggest resources.`;
+Provide a helpful, educational response in your personality style. Be thorough but concise. Use examples when helpful. If the question goes beyond the topic scope, try to relate it back or suggest resources.`;
 
   try {
-    const response = await callGemini(apiKey, prompt);
+    const response = await callGemini(prompt);
     return response.trim();
   } catch (error) {
     console.error('Error in dig deeper:', error);
@@ -640,13 +657,13 @@ Provide a helpful, educational response. Be thorough but concise. Use examples w
   }
 }
 
-// Validate API key by making a test request
-export async function validateApiKey(apiKey: string): Promise<boolean> {
+// Check if AI service is available (server-side)
+export async function checkAIServiceAvailable(): Promise<boolean> {
   try {
-    await callGemini(apiKey, 'Reply with just the word "ok"');
+    await callGemini('Reply with just the word "ok"');
     return true;
   } catch (error) {
-    console.error('API key validation failed:', error);
+    console.error('AI service check failed:', error);
     return false;
   }
 }
