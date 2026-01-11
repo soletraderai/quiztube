@@ -8,13 +8,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className = '', variant = 'primary', size = 'md', loading = false, disabled, children, ...props }, ref) => {
-    const baseStyles = 'font-heading font-semibold border-3 border-border transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed';
+    const baseStyles = 'font-heading font-semibold border-3 border-border transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98]';
 
     const variants = {
-      primary: 'bg-primary hover:shadow-brutal-hover active:shadow-brutal-sm',
-      secondary: 'bg-secondary hover:shadow-brutal-hover active:shadow-brutal-sm',
-      danger: 'bg-error text-white hover:shadow-brutal-hover active:shadow-brutal-sm',
-      ghost: 'bg-surface hover:bg-primary hover:shadow-brutal',
+      primary: 'bg-primary hover:shadow-brutal-hover active:shadow-brutal-sm active:translate-y-0.5',
+      secondary: 'bg-secondary hover:shadow-brutal-hover active:shadow-brutal-sm active:translate-y-0.5',
+      danger: 'bg-error text-white hover:shadow-brutal-hover active:shadow-brutal-sm active:translate-y-0.5',
+      ghost: 'bg-surface hover:bg-primary hover:shadow-brutal active:shadow-brutal-sm active:scale-[0.98]',
     };
 
     const sizes = {

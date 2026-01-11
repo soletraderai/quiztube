@@ -411,9 +411,32 @@ export default function ActiveSession() {
 
       {/* Feedback Phase */}
       {phase === 'feedback' && currentQuestion.feedback && (
-        <Card>
+        <Card className="animate-fade-in">
           <div className="space-y-6">
-            <div>
+            {/* Success Animation */}
+            <div className="flex justify-center animate-scale-in">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-full bg-success/20 flex items-center justify-center animate-pulse-subtle">
+                  <div className="w-14 h-14 rounded-full bg-success/40 flex items-center justify-center">
+                    <svg
+                      className="w-8 h-8 text-success animate-check-draw"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                    >
+                      <path className="animate-check-path" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+                {/* Subtle glow effect */}
+                <div className="absolute inset-0 rounded-full bg-success/10 animate-ping-slow opacity-0" />
+              </div>
+            </div>
+
+            <div className="animate-slide-up delay-100">
               <h2 className="font-heading text-lg font-bold text-text mb-2">
                 Your Answer
               </h2>
@@ -422,14 +445,14 @@ export default function ActiveSession() {
               </p>
             </div>
 
-            <div>
+            <div className="animate-slide-up delay-200">
               <h2 className="font-heading text-lg font-bold text-success mb-2">
                 Feedback
               </h2>
               <p className="text-text">{currentQuestion.feedback}</p>
             </div>
 
-            <Button onClick={handleContinueToSummary} className="w-full">
+            <Button onClick={handleContinueToSummary} className="w-full animate-slide-up delay-300">
               Continue to Summary
             </Button>
           </div>
