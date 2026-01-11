@@ -1,8 +1,12 @@
+// Tutor personality type
+export type TutorPersonality = 'PROFESSOR' | 'COACH' | 'DIRECT' | 'CREATIVE';
+
 // Settings type
 export interface Settings {
   userName: string;
   geminiApiKey: string;
   language: string;
+  tutorPersonality: TutorPersonality;
 }
 
 // Video metadata type

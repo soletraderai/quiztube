@@ -3,10 +3,12 @@ import { useState } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import OfflineBanner from './OfflineBanner';
 import Breadcrumb from './Breadcrumb';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function Layout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, isAuthenticated } = useAuthStore();
 
   const navLinks = [
     { to: '/', label: 'Home' },
@@ -45,7 +47,7 @@ export default function Layout() {
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex space-x-4" role="navigation" aria-label="Main navigation">
+            <nav className="hidden md:flex items-center space-x-4" role="navigation" aria-label="Main navigation">
               {navLinks.map((link) => (
                 <Link
                   key={link.to}
@@ -59,6 +61,20 @@ export default function Layout() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Subscription Tier Badge */}
+              {isAuthenticated() && user && (
+                <span
+                  className={`px-3 py-1 font-heading font-bold text-sm border-2 border-border ${
+                    user.tier === 'PRO'
+                      ? 'bg-secondary text-text'
+                      : 'bg-surface text-text/70'
+                  }`}
+                  title={`Your subscription tier: ${user.tier}`}
+                >
+                  {user.tier}
+                </span>
+              )}
             </nav>
 
             {/* Mobile menu button */}
@@ -101,6 +117,20 @@ export default function Layout() {
               aria-label="Mobile navigation"
             >
               <div className="flex flex-col space-y-2">
+                {/* Subscription Tier Badge - Mobile */}
+                {isAuthenticated() && user && (
+                  <div className="px-4 py-2">
+                    <span
+                      className={`inline-block px-3 py-1 font-heading font-bold text-sm border-2 border-border ${
+                        user.tier === 'PRO'
+                          ? 'bg-secondary text-text'
+                          : 'bg-surface text-text/70'
+                      }`}
+                    >
+                      {user.tier} Plan
+                    </span>
+                  </div>
+                )}
                 {navLinks.map((link) => (
                   <Link
                     key={link.to}

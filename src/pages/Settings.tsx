@@ -6,6 +6,39 @@ import Select from '../components/ui/Select';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
 import { useSettingsStore } from '../stores/settingsStore';
+import type { TutorPersonality } from '../types';
+
+const tutorPersonalityOptions: {
+  value: TutorPersonality;
+  label: string;
+  description: string;
+  preview: string;
+}[] = [
+  {
+    value: 'PROFESSOR',
+    label: 'The Professor',
+    description: 'Academic and thorough explanations with context and theory',
+    preview: '"Let me explain this concept in depth. First, consider the underlying principles..."',
+  },
+  {
+    value: 'COACH',
+    label: 'The Coach',
+    description: 'Encouraging and supportive, celebrates progress',
+    preview: '"Great effort! You\'re on the right track. Let\'s build on what you\'ve learned..."',
+  },
+  {
+    value: 'DIRECT',
+    label: 'The Direct',
+    description: 'Concise and to-the-point, no fluff',
+    preview: '"Correct. Key point: X does Y. Next topic."',
+  },
+  {
+    value: 'CREATIVE',
+    label: 'The Creative',
+    description: 'Uses analogies, stories, and creative examples',
+    preview: '"Think of it like cooking a recipe - each ingredient (concept) builds on the last..."',
+  },
+];
 
 const languageOptions = [
   { value: 'en', label: 'English' },
@@ -26,6 +59,7 @@ export default function Settings() {
     userName: settings.userName,
     geminiApiKey: settings.geminiApiKey,
     language: settings.language,
+    tutorPersonality: settings.tutorPersonality || 'PROFESSOR',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -38,7 +72,8 @@ export default function Settings() {
     const hasChanges =
       formData.userName !== settings.userName ||
       formData.geminiApiKey !== settings.geminiApiKey ||
-      formData.language !== settings.language;
+      formData.language !== settings.language ||
+      formData.tutorPersonality !== (settings.tutorPersonality || 'PROFESSOR');
     setIsDirty(hasChanges);
   }, [formData, settings]);
 
@@ -125,6 +160,7 @@ export default function Settings() {
         userName: formData.userName.trim(),
         geminiApiKey: formData.geminiApiKey.trim(),
         language: formData.language,
+        tutorPersonality: formData.tutorPersonality as TutorPersonality,
       });
 
       setToast({ message: 'Settings saved successfully!', type: 'success' });
@@ -137,6 +173,7 @@ export default function Settings() {
           userName: formData.userName.trim(),
           geminiApiKey: formData.geminiApiKey.trim(),
           language: formData.language,
+          tutorPersonality: formData.tutorPersonality as TutorPersonality,
         });
         setToast({ message: 'Settings saved successfully!', type: 'success' });
         setIsDirty(false);
@@ -231,6 +268,40 @@ export default function Settings() {
             error={errors.language}
             required
           />
+
+          {/* Tutor Personality */}
+          <div className="space-y-3">
+            <label className="block font-heading font-semibold text-text">
+              Tutor Personality
+            </label>
+            <p className="text-sm text-text/70">
+              Choose how your AI tutor communicates with you
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {tutorPersonalityOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleInputChange('tutorPersonality', option.value)}
+                  className={`p-4 text-left border-3 border-border transition-all ${
+                    formData.tutorPersonality === option.value
+                      ? 'bg-primary shadow-brutal'
+                      : 'bg-surface hover:bg-primary/30 hover:shadow-brutal-sm'
+                  }`}
+                >
+                  <div className="font-heading font-bold text-text mb-1">
+                    {option.label}
+                  </div>
+                  <div className="text-sm text-text/70 mb-2">
+                    {option.description}
+                  </div>
+                  <div className="text-xs text-text/60 italic font-mono bg-background/50 p-2 border border-border/30">
+                    {option.preview}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">

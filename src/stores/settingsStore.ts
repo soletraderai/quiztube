@@ -13,6 +13,7 @@ const defaultSettings: Settings = {
   userName: '',
   geminiApiKey: '',
   language: 'en',
+  tutorPersonality: 'PROFESSOR',
 };
 
 export const useSettingsStore = create<SettingsState>()(

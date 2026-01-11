@@ -8,6 +8,7 @@ import SessionOverview from './pages/SessionOverview';
 import ActiveSession from './pages/ActiveSession';
 import SessionNotes from './pages/SessionNotes';
 import NotFound from './pages/NotFound';
+import Pricing from './pages/Pricing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
@@ -34,6 +35,7 @@ function App() {
             <Route path="session/:sessionId/overview" element={<SessionOverview />} />
             <Route path="session/:sessionId/active" element={<ActiveSession />} />
             <Route path="session/:sessionId/notes" element={<SessionNotes />} />
+            <Route path="pricing" element={<Pricing />} />
             <Route path="404" element={<NotFound />} />
             <Route path="*" element={<Navigate to="/404" replace />} />
           </Route>
