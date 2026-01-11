@@ -3,10 +3,10 @@
 ## Session 5 - January 11, 2026
 
 ### Summary
-Implemented Feed page, channel session tracking, learning model data collection, Learning Insights UI, and signal override toggles. Progress increased from 108/415 to 113/415 (27.2%).
+Implemented Feed page, channel session tracking, learning model data collection, Learning Insights UI, signal override toggles, learning model reset, and optimal time suggestion. Progress increased from 108/415 to 116/415 (28.0%).
 
 ### Current Progress
-- **Passing**: 113/415 features (27.2%)
+- **Passing**: 116/415 features (28.0%)
 - **Phase**: 2
 
 ### Session 5 Implemented Features
@@ -45,6 +45,22 @@ Implemented Feed page, channel session tracking, learning model data collection,
 - API integration to enable/disable individual signals
 - Toast notifications for toggle changes
 
+#### 6. Learning Model Reset - Feature #515
+- Added Reset Model button with danger variant
+- Confirmation modal before resetting
+- Calls DELETE /api/learning-model endpoint
+- Shows success toast and transitions to empty state
+
+#### 7. Individual Signal Toggles - Feature #516
+- Can toggle individual signals on/off
+- Verified timeOfDay can be disabled while others remain active
+- UI updates immediately with toast confirmation
+
+#### 8. Optimal Time Suggestion - Feature #518
+- Shows "Best Learning Time" based on session completion times
+- Displays whether morning, afternoon, or evening is optimal
+- Based on actual session data patterns
+
 ### Infrastructure Changes
 - Updated CORS to support multiple frontend ports (5173, 5174, 5175)
 - Added POST /api/sessions/:id/complete endpoint
@@ -52,6 +68,7 @@ Implemented Feed page, channel session tracking, learning model data collection,
 
 ### Features Skipped
 - #510 Start session from feed - Requires YouTube API integration for video feed
+- #517 Difficulty calibration - Requires multiple sessions with AI-generated questions
 
 ### Services Running
 - PostgreSQL: localhost:5432 (healthy)
@@ -71,6 +88,8 @@ Priority items to implement:
 
 ### Commits This Session
 - `00725b4` - feat: Add Feed page, channel tracking, and learning insights
+- `55534bd` - feat: Add learning model signal override toggles
+- `1e1e099` - feat: Add learning model reset functionality
 
 ### Screenshots Taken
 - feed-empty-state.png
@@ -80,3 +99,7 @@ Priority items to implement:
 - settings-learning-insights.png
 - settings-signal-toggles.png
 - settings-signal-toggle-disabled.png
+- settings-reset-confirm-modal.png
+- settings-model-reset-complete.png
+- settings-signal-toggle-timeofday-disabled.png
+- settings-best-learning-time.png
