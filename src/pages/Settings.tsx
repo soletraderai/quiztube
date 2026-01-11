@@ -120,6 +120,13 @@ const languageOptions = [
   { value: 'zh', label: 'Chinese' },
 ];
 
+const learningStyleOptions = [
+  { value: 'visual', label: 'Visual', description: 'Learn best with diagrams, charts, and videos' },
+  { value: 'reading', label: 'Reading/Writing', description: 'Prefer text-based learning and note-taking' },
+  { value: 'auditory', label: 'Auditory', description: 'Learn best by listening and discussion' },
+  { value: 'kinesthetic', label: 'Hands-on', description: 'Learn by doing and practical examples' },
+];
+
 export default function Settings() {
   const navigate = useNavigate();
   const { settings, setSettings } = useSettingsStore();
@@ -133,6 +140,7 @@ export default function Settings() {
     geminiApiKey: settings.geminiApiKey,
     language: settings.language,
     tutorPersonality: settings.tutorPersonality || 'PROFESSOR',
+    learningStyle: settings.learningStyle || 'visual',
     displayName: user?.name || settings.userName || '',
     avatarUrl: user?.avatarUrl || '',
   });
@@ -566,6 +574,38 @@ export default function Settings() {
             error={errors.language}
             required
           />
+
+          {/* Learning Preferences Section */}
+          <div className="pt-4 border-t-2 border-border/30">
+            <h3 className="font-heading text-lg font-bold text-text mb-4">Learning Preferences</h3>
+
+            {/* Learning Style */}
+            <div className="space-y-3 mb-6">
+              <label className="block font-heading font-semibold text-text">
+                Learning Style
+              </label>
+              <p className="text-sm text-text/70">
+                How do you prefer to learn new concepts?
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {learningStyleOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleInputChange('learningStyle', option.value)}
+                    className={`p-4 text-left border-3 border-border transition-all ${
+                      formData.learningStyle === option.value
+                        ? 'bg-primary shadow-brutal'
+                        : 'bg-surface hover:bg-primary/30 hover:shadow-brutal-sm'
+                    }`}
+                  >
+                    <span className="font-heading font-bold text-text block">{option.label}</span>
+                    <span className="text-sm text-text/70">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {/* Tutor Personality */}
           <div className="space-y-3">

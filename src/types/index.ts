@@ -1,12 +1,16 @@
 // Tutor personality type
 export type TutorPersonality = 'PROFESSOR' | 'COACH' | 'DIRECT' | 'CREATIVE';
 
+// Learning style type
+export type LearningStyle = 'visual' | 'reading' | 'auditory' | 'kinesthetic';
+
 // Settings type
 export interface Settings {
   userName: string;
   geminiApiKey: string;
   language: string;
   tutorPersonality: TutorPersonality;
+  learningStyle: LearningStyle;
 }
 
 // Video metadata type

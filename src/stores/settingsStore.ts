@@ -14,6 +14,7 @@ const defaultSettings: Settings = {
   geminiApiKey: '',
   language: 'en',
   tutorPersonality: 'PROFESSOR',
+  learningStyle: 'visual',
 };
 
 export const useSettingsStore = create<SettingsState>()(

@@ -3,11 +3,43 @@
 ## Session 6 - January 11, 2026
 
 ### Summary
-Implemented full Goals feature set for PRO users. Created Goals page with 3-step wizard, support for Time/Topic/Outcome goal types, progress visualization, milestone tracking, and deadline reminder notifications. Progress increased from 121/415 to 128/415 (30.8%).
+Continued implementing Goals features and Settings profile section. Added goal suggestions based on user activity, goal editing, manual goal completion, Goals Pro-only restriction, and Profile settings with avatar/display name. Progress increased from 128/415 to 133/415 (32.0%).
 
 ### Current Progress
-- **Passing**: 128/415 features (30.8%)
+- **Passing**: 133/415 features (32.0%)
 - **Phase**: 2
+
+### Session 6 Continued Features
+
+#### 8. Goal Suggestions - Feature #573
+- API endpoint `/api/goals/suggestions` analyzes user activity
+- Suggests TIME, TOPIC, or OUTCOME goals based on patterns
+- Considers session history, topics in progress, channel viewing
+- Avoids suggesting duplicates of existing goals
+- UI shows clickable suggestion cards that pre-fill wizard
+
+#### 9. Edit Goal - Feature #574
+- Added edit button (pencil icon) to goal cards
+- Edit modal allows changing target value and deadline
+- Only active goals can be edited
+- Updates via PATCH endpoint
+
+#### 10. Archive Completed Goals - Feature #575
+- Added "Mark complete" button (checkmark) to goal cards
+- Confirmation dialog before completing
+- Completed goals move to "Completed" tab
+- Goals accessible via Active/Completed/Abandoned filters
+
+#### 11. Goals Pro Only - Feature #576
+- Free users redirected to /pricing when accessing Goals
+- Upgrade prompt shown with Pro features highlighted
+
+#### 12. Settings Profile Section - Feature #577
+- Added dedicated Profile section at top of Settings
+- Avatar display with initials or uploaded image
+- Camera icon for avatar upload/change
+- Display name field with helper text
+- Email address shown in profile section
 
 ### Session 6 Implemented Features
 
