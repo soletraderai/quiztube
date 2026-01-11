@@ -20,6 +20,7 @@ import learningModelRoutes from './routes/learningModel.js';
 import knowledgeMapRoutes from './routes/knowledgeMap.js';
 import codeRoutes from './routes/code.js';
 import timedSessionRoutes from './routes/timedSessions.js';
+import questionRoutes from './routes/questions.js';
 import webhookRoutes from './routes/webhooks.js';
 
 // Import middleware
@@ -99,6 +100,7 @@ app.use('/api/learning-model', authMiddleware, learningModelRoutes);
 app.use('/api/knowledge-map', authMiddleware, knowledgeMapRoutes);
 app.use('/api/code', authMiddleware, codeRoutes);
 app.use('/api/timed-sessions', authMiddleware, timedSessionRoutes);
+app.use('/api/questions', authMiddleware, questionRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -24,6 +24,23 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
   }
 });
 
+// GET /api/topics/due-for-review (must be before /:id)
+router.get('/due-for-review', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const topics = await prisma.topic.findMany({
+      where: {
+        userId: req.user!.id,
+        nextReviewDate: { lte: new Date() },
+      },
+      orderBy: { nextReviewDate: 'asc' },
+    });
+
+    res.json(topics);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/topics/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
@@ -58,23 +75,6 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
 
     const updated = await prisma.topic.findUnique({ where: { id } });
     res.json(updated);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// GET /api/topics/due-for-review
-router.get('/due-for-review', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try {
-    const topics = await prisma.topic.findMany({
-      where: {
-        userId: req.user!.id,
-        nextReviewDate: { lte: new Date() },
-      },
-      orderBy: { nextReviewDate: 'asc' },
-    });
-
-    res.json(topics);
   } catch (error) {
     next(error);
   }
