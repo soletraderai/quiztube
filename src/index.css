@@ -470,3 +470,44 @@ textarea:focus-visible,
     outline-offset: 0px;
   }
 }
+
+/* Reduced motion support for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable specific animation classes */
+  .page-enter,
+  .page-exit,
+  .stagger-item,
+  .modal-overlay,
+  .modal-overlay-exit,
+  .modal-content,
+  .modal-content-exit,
+  .completion-overlay-enter,
+  .completion-overlay-exit,
+  .completion-check-enter,
+  .completion-check-exit,
+  .completion-message-enter,
+  .completion-message-exit,
+  .completion-bg-pulse,
+  .input-error-shake,
+  .input-error-highlight {
+    animation: none !important;
+  }
+
+  /* Keep essential visual feedback but instant */
+  .progress-bar-fill {
+    transition: none !important;
+  }
+
+  .card-hoverable:hover {
+    transform: none !important;
+  }
+}
