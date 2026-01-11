@@ -145,6 +145,14 @@ export default function Settings() {
     avatarUrl: user?.avatarUrl || '',
   });
 
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState({
+    pushEnabled: true,
+    emailDigest: 'weekly' as 'none' | 'daily' | 'weekly',
+    emailNewFeatures: true,
+    emailReminders: true,
+  });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -154,6 +162,10 @@ export default function Settings() {
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resettingModel, setResettingModel] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Fetch learning model data
   useEffect(() => {
@@ -389,6 +401,119 @@ export default function Settings() {
     }
   };
 
+  const handleNotificationToggle = (setting: string, value: boolean | string) => {
+    setNotificationSettings((prev) => ({ ...prev, [setting]: value }));
+    setIsDirty(true);
+    setToast({ message: 'Notification setting updated', type: 'success' });
+  };
+
+  // Handle data export
+  const handleExportData = async () => {
+    setExportingData(true);
+    try {
+      const { accessToken } = useAuthStore.getState();
+
+      // Collect all user data
+      const userData = {
+        exportDate: new Date().toISOString(),
+        profile: {
+          email: user?.email,
+          name: user?.name,
+          tier: user?.tier,
+        },
+        settings: {
+          userName: settings.userName,
+          language: settings.language,
+          tutorPersonality: settings.tutorPersonality,
+          learningStyle: settings.learningStyle,
+        },
+        notificationPreferences: notificationSettings,
+        learningModel: learningModel,
+      };
+
+      // Fetch additional data if authenticated
+      if (accessToken) {
+        try {
+          // Fetch sessions
+          const sessionsResponse = await fetch(`${API_BASE}/sessions`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            credentials: 'include',
+          });
+          if (sessionsResponse.ok) {
+            const sessionsData = await sessionsResponse.json();
+            // @ts-expect-error Adding sessions to userData
+            userData.sessions = sessionsData;
+          }
+
+          // Fetch goals
+          const goalsResponse = await fetch(`${API_BASE}/goals`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            credentials: 'include',
+          });
+          if (goalsResponse.ok) {
+            const goalsData = await goalsResponse.json();
+            // @ts-expect-error Adding goals to userData
+            userData.goals = goalsData;
+          }
+        } catch (err) {
+          console.error('Error fetching additional data:', err);
+        }
+      }
+
+      // Create downloadable file
+      const blob = new Blob([JSON.stringify(userData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `teachy-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setToast({ message: 'Data exported successfully!', type: 'success' });
+    } catch (err) {
+      console.error('Failed to export data:', err);
+      setToast({ message: 'Failed to export data', type: 'error' });
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  // Handle delete account
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+
+    setDeletingAccount(true);
+    try {
+      const { accessToken, logout } = useAuthStore.getState();
+      const response = await fetch(`${API_BASE}/auth/delete-account`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        setToast({ message: 'Account deleted successfully', type: 'success' });
+        // Clear local data and logout
+        setTimeout(() => {
+          logout();
+          navigate('/');
+        }, 1500);
+      } else {
+        const data = await response.json();
+        setToast({ message: data.error || 'Failed to delete account', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      setToast({ message: 'Failed to delete account', type: 'error' });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -461,6 +586,62 @@ export default function Settings() {
               >
                 Cancel
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteAccountConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background border-3 border-border shadow-brutal max-w-md w-full p-6">
+            <h3 className="font-heading text-xl font-bold text-danger mb-3">
+              Delete Account Permanently?
+            </h3>
+            <div className="space-y-4">
+              <div className="p-4 bg-danger/10 border-2 border-danger/30">
+                <p className="text-sm text-danger font-semibold mb-2">Warning: This action is permanent and cannot be undone!</p>
+                <ul className="text-sm text-text/70 list-disc list-inside space-y-1">
+                  <li>All your learning sessions will be deleted</li>
+                  <li>All your goals and progress will be lost</li>
+                  <li>Your learning model data will be erased</li>
+                  <li>Your subscription will be cancelled</li>
+                </ul>
+              </div>
+              <div>
+                <label className="block text-sm font-heading font-semibold text-text mb-2">
+                  Type DELETE to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  className="w-full p-3 border-3 border-border bg-surface font-mono text-center text-lg focus:outline-none focus:ring-2 focus:ring-danger/50"
+                  placeholder="DELETE"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="danger"
+                  onClick={handleDeleteAccount}
+                  loading={deletingAccount}
+                  disabled={deletingAccount || deleteConfirmText !== 'DELETE'}
+                  className="flex-1"
+                >
+                  Delete My Account
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowDeleteAccountConfirm(false);
+                    setDeleteConfirmText('');
+                  }}
+                  disabled={deletingAccount}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -679,6 +860,285 @@ export default function Settings() {
         </form>
       </Card>
 
+      {/* Notifications Section */}
+      <Card className="mt-6">
+        <h2 className="font-heading text-xl font-bold text-text mb-4">Notifications</h2>
+        <div className="space-y-4">
+          {/* Push Notifications Toggle */}
+          <div className="flex items-center justify-between p-4 bg-surface border-3 border-border">
+            <div>
+              <p className="font-heading font-bold text-text">Push Notifications</p>
+              <p className="text-sm text-text/60">Receive browser notifications for learning reminders</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleNotificationToggle('pushEnabled', !notificationSettings.pushEnabled)}
+              className={`relative w-14 h-7 rounded-none border-3 border-border transition-colors ${
+                notificationSettings.pushEnabled ? 'bg-primary' : 'bg-background'
+              }`}
+              role="switch"
+              aria-checked={notificationSettings.pushEnabled}
+              aria-label="Toggle push notifications"
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-text transition-transform ${
+                  notificationSettings.pushEnabled ? 'translate-x-7' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Email Notifications Section */}
+          <div className="border-t-2 border-border/30 pt-4">
+            <p className="font-heading font-semibold text-text mb-3">Email Notifications</p>
+
+            {/* Email Digest Frequency */}
+            <div className="mb-4">
+              <label className="block text-sm font-heading font-semibold text-text mb-2">
+                Learning Digest
+              </label>
+              <p className="text-xs text-text/60 mb-2">
+                Receive a summary of your learning progress
+              </p>
+              <div className="flex gap-2">
+                {(['none', 'daily', 'weekly'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => handleNotificationToggle('emailDigest', option)}
+                    className={`px-4 py-2 text-sm font-heading font-semibold border-2 border-border transition-all capitalize ${
+                      notificationSettings.emailDigest === option
+                        ? 'bg-primary shadow-brutal-sm'
+                        : 'bg-surface hover:bg-primary/30'
+                    }`}
+                  >
+                    {option === 'none' ? 'Off' : option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* New Features Email Toggle */}
+            <div className="flex items-center justify-between p-3 bg-background border border-border/50 mb-3">
+              <div>
+                <p className="font-heading font-semibold text-text text-sm">New Features & Updates</p>
+                <p className="text-xs text-text/60">Get notified about new app features</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNotificationToggle('emailNewFeatures', !notificationSettings.emailNewFeatures)}
+                className={`relative w-12 h-6 rounded-none border-2 border-border transition-colors ${
+                  notificationSettings.emailNewFeatures ? 'bg-primary' : 'bg-surface'
+                }`}
+                role="switch"
+                aria-checked={notificationSettings.emailNewFeatures}
+                aria-label="Toggle new features email"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-text transition-transform ${
+                    notificationSettings.emailNewFeatures ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Reminders Email Toggle */}
+            <div className="flex items-center justify-between p-3 bg-background border border-border/50">
+              <div>
+                <p className="font-heading font-semibold text-text text-sm">Learning Reminders</p>
+                <p className="text-xs text-text/60">Receive reminders to continue learning</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNotificationToggle('emailReminders', !notificationSettings.emailReminders)}
+                className={`relative w-12 h-6 rounded-none border-2 border-border transition-colors ${
+                  notificationSettings.emailReminders ? 'bg-primary' : 'bg-surface'
+                }`}
+                role="switch"
+                aria-checked={notificationSettings.emailReminders}
+                aria-label="Toggle learning reminders email"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-text transition-transform ${
+                    notificationSettings.emailReminders ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Privacy Section */}
+      <Card className="mt-6">
+        <h2 className="font-heading text-xl font-bold text-text mb-4">Privacy & Data</h2>
+        <div className="space-y-4">
+          {/* Learning Model Controls */}
+          <div className="p-4 bg-surface border-3 border-border">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary/30 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-heading font-bold text-text">Learning Model Controls</p>
+                <p className="text-sm text-text/60 mb-3">
+                  Control what data is used to personalize your learning experience. You can toggle individual signals in the Learning Insights section below.
+                </p>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="inline-flex items-center px-2 py-1 bg-success/20 border border-success/50 text-success font-semibold">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Data stored locally
+                  </span>
+                  <span className="inline-flex items-center px-2 py-1 bg-primary/20 border border-primary/50 text-text font-semibold">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Encrypted
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Export */}
+          <div className="p-4 bg-surface border-3 border-border">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-secondary/30 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-heading font-bold text-text">Export Your Data</p>
+                <p className="text-sm text-text/60 mb-3">
+                  Download a copy of all your data including sessions, goals, settings, and learning patterns in JSON format.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleExportData}
+                  loading={exportingData}
+                  disabled={exportingData}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export Data
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Deletion Notice */}
+          <div className="p-4 bg-background border border-border/50">
+            <p className="text-sm text-text/70">
+              <strong className="text-text">Need to delete your data?</strong> Use the &quot;Reset Learning Model&quot; option in the Learning Insights section to delete your learning patterns. To delete your account, contact support.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Subscription Section */}
+      {isAuthenticated() && (
+        <Card className="mt-6">
+          <h2 className="font-heading text-xl font-bold text-text mb-4">Subscription</h2>
+          <div className="space-y-4">
+            {/* Current Plan */}
+            <div className={`p-4 border-3 border-border ${isPro ? 'bg-primary/20' : 'bg-surface'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isPro ? 'bg-primary' : 'bg-background border-2 border-border'}`}>
+                    {isPro ? (
+                      <svg className="w-6 h-6 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6 text-text/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-heading font-bold text-text text-lg">
+                      {isPro ? 'Pro Plan' : 'Free Plan'}
+                    </p>
+                    <p className="text-sm text-text/60">
+                      {isPro ? 'Unlimited access to all features' : 'Basic features included'}
+                    </p>
+                  </div>
+                </div>
+                <span className={`px-3 py-1 text-sm font-heading font-bold border-2 border-border ${isPro ? 'bg-primary text-text' : 'bg-surface text-text/70'}`}>
+                  {isPro ? 'ACTIVE' : 'FREE'}
+                </span>
+              </div>
+            </div>
+
+            {/* Pro Features or Upgrade */}
+            {isPro ? (
+              <div className="space-y-3">
+                <p className="font-heading font-semibold text-text">Your Pro Benefits:</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    'Unlimited learning sessions',
+                    'All tutor personalities',
+                    'Advanced goal tracking',
+                    'Priority support',
+                    'Learning insights & analytics',
+                    'Custom learning paths',
+                  ].map((benefit) => (
+                    <div key={benefit} className="flex items-center gap-2 text-sm text-text/80">
+                      <svg className="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {benefit}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-primary/10 border border-primary/30">
+                <p className="font-heading font-bold text-text mb-2">Upgrade to Pro</p>
+                <p className="text-sm text-text/70 mb-3">
+                  Unlock unlimited sessions, all tutor personalities, advanced goals, and more.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate('/pricing')}
+                >
+                  View Plans
+                </Button>
+              </div>
+            )}
+
+            {/* Manage Subscription Link */}
+            {isPro && (
+              <div className="pt-4 border-t border-border/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-heading font-semibold text-text">Manage Subscription</p>
+                    <p className="text-sm text-text/60">View billing, change plan, or cancel</p>
+                  </div>
+                  <a
+                    href="/pricing"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-surface border-2 border-border text-sm font-heading font-semibold hover:bg-primary/30 hover:shadow-brutal-sm transition-all"
+                  >
+                    Manage
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* API Key Info */}
       <Card className="mt-6 bg-secondary/10">
         <h2 className="font-heading text-lg font-bold text-text mb-2">
@@ -869,6 +1329,38 @@ export default function Settings() {
               </p>
             </div>
           )}
+        </Card>
+      )}
+
+      {/* Danger Zone - Delete Account */}
+      {isAuthenticated() && (
+        <Card className="mt-6 border-danger/50 bg-danger/5">
+          <h2 className="font-heading text-xl font-bold text-danger mb-4">Danger Zone</h2>
+          <div className="p-4 bg-background border-3 border-danger/30">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-heading font-bold text-text">Delete Account</p>
+                <p className="text-sm text-text/60 mb-3">
+                  Permanently delete your account and all associated data. This action is irreversible and will remove all your sessions, goals, settings, and learning progress.
+                </p>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setShowDeleteAccountConfirm(true)}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Account
+                </Button>
+              </div>
+            </div>
+          </div>
         </Card>
       )}
     </div>
