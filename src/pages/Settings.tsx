@@ -133,9 +133,12 @@ export default function Settings() {
     geminiApiKey: settings.geminiApiKey,
     language: settings.language,
     tutorPersonality: settings.tutorPersonality || 'PROFESSOR',
+    displayName: user?.name || settings.userName || '',
+    avatarUrl: user?.avatarUrl || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -367,6 +370,7 @@ export default function Settings() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setIsDirty(true);
     // Clear error when user types
     if (errors[field]) {
       setErrors((prev) => {
@@ -375,6 +379,40 @@ export default function Settings() {
         return newErrors;
       });
     }
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setToast({ message: 'Please select an image file', type: 'error' });
+        return;
+      }
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setToast({ message: 'Image must be less than 2MB', type: 'error' });
+        return;
+      }
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+        setFormData((prev) => ({ ...prev, avatarUrl: reader.result as string }));
+        setIsDirty(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(part => part.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -423,6 +461,63 @@ export default function Settings() {
       <h1 className="font-heading text-3xl font-bold text-text mb-6">
         Settings
       </h1>
+
+      {/* Profile Section */}
+      <Card className="mb-6">
+        <h2 className="font-heading text-xl font-bold text-text mb-4">Profile</h2>
+        <div className="flex items-start gap-6">
+          {/* Avatar */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              {avatarPreview || formData.avatarUrl ? (
+                <img
+                  src={avatarPreview || formData.avatarUrl}
+                  alt="Profile avatar"
+                  className="w-24 h-24 rounded-full border-3 border-border object-cover"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full border-3 border-border bg-primary flex items-center justify-center">
+                  <span className="font-heading text-2xl font-bold text-text">
+                    {getInitials(formData.displayName || formData.userName || 'U')}
+                  </span>
+                </div>
+              )}
+              <label
+                htmlFor="avatar-upload"
+                className="absolute bottom-0 right-0 w-8 h-8 bg-primary border-2 border-border rounded-full flex items-center justify-center cursor-pointer hover:shadow-brutal transition-shadow"
+              >
+                <svg className="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+              </label>
+            </div>
+            <p className="text-xs text-text/60">Click to change avatar</p>
+          </div>
+
+          {/* Display Name */}
+          <div className="flex-1">
+            <Input
+              label="Display Name"
+              type="text"
+              placeholder="Enter your display name"
+              value={formData.displayName}
+              onChange={(e) => handleInputChange('displayName', e.target.value)}
+              helperText="This is how you'll appear across the app"
+            />
+            <p className="mt-2 text-sm text-text/60">
+              Email: {user?.email || 'Not available'}
+            </p>
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
