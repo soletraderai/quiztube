@@ -312,6 +312,38 @@ export default function Goals() {
     }
   };
 
+  const handleMarkComplete = async (goalId: string) => {
+    if (!confirm('Mark this goal as completed?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/goals/${goalId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          status: 'COMPLETED',
+          completedAt: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to complete goal');
+      }
+
+      setToast({ message: 'Goal completed! Great job!', type: 'success' });
+      fetchGoals();
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to complete goal',
+        type: 'error',
+      });
+    }
+  };
+
   const calculateProgress = (goal: Goal): number => {
     if (!goal.targetValue) return 0;
     return Math.min((goal.currentValue / goal.targetValue) * 100, 100);
@@ -725,15 +757,27 @@ export default function Goals() {
                 </div>
                 <div className="flex items-center gap-2">
                   {goal.status === 'ACTIVE' && (
-                    <button
-                      onClick={() => handleEditGoal(goal)}
-                      className="text-text/40 hover:text-primary transition-colors"
-                      aria-label="Edit goal"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleMarkComplete(goal.id)}
+                        className="text-text/40 hover:text-success transition-colors"
+                        aria-label="Mark goal complete"
+                        title="Mark as completed"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleEditGoal(goal)}
+                        className="text-text/40 hover:text-primary transition-colors"
+                        aria-label="Edit goal"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => handleDeleteGoal(goal.id)}
