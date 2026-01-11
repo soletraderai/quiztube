@@ -44,6 +44,7 @@ export default function Layout() {
     { to: '/', label: 'Home' },
     { to: '/feed', label: 'Your Feed' },
     { to: '/library', label: 'Library' },
+    { to: '/goals', label: 'Goals' },
     { to: '/settings', label: 'Settings' },
   ];
 

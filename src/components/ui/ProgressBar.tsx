@@ -3,6 +3,7 @@ interface ProgressBarProps {
   total: number;
   label?: string;
   showPercentage?: boolean;
+  showCount?: boolean;
 }
 
 export default function ProgressBar({
@@ -10,6 +11,7 @@ export default function ProgressBar({
   total,
   label,
   showPercentage = true,
+  showCount = true,
 }: ProgressBarProps) {
   const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
 
@@ -35,9 +37,11 @@ export default function ProgressBar({
           style={{ width: `${percentage}%` }}
         />
       </div>
-      <div className="mt-1 text-sm font-body text-text/70">
-        {current} of {total}
-      </div>
+      {showCount && (
+        <div className="mt-1 text-sm font-body text-text/70">
+          {current} of {total}
+        </div>
+      )}
     </div>
   );
 }
