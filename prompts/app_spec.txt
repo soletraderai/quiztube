@@ -1,0 +1,630 @@
+<project_specification>
+  <project_name>Teachy</project_name>
+
+  <overview>
+    Teachy is a React-based interactive learning application that transforms passive YouTube video consumption into active, retention-focused learning sessions. The tool extracts video transcripts, builds enriched knowledge bases from referenced sources, and guides users through bite-sized Q&A sessions designed for kinesthetic learners who retain information through doing, not watching.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React</framework>
+      <routing>React Router</routing>
+      <styling>CSS with neobrutalism design system (Tailwind optional for utilities)</styling>
+      <state_management>React Context or Zustand (lightweight)</state_management>
+      <storage>localStorage for persistence (sessions, settings, library)</storage>
+    </frontend>
+    <backend>
+      <runtime>Client-side only (no traditional backend)</runtime>
+      <database>localStorage (structured JSON storage)</database>
+    </backend>
+    <communication>
+      <api>External APIs only (YouTube, Gemini, GitHub, web fetch)</api>
+    </communication>
+    <external_services>
+      <youtube>
+        <transcript>youtube-transcript library or similar for transcript extraction</transcript>
+        <metadata>oEmbed API for thumbnail, title, duration, channel</metadata>
+      </youtube>
+      <gemini>
+        <purpose>Transcript analysis, topic extraction, question generation, answer evaluation, dig deeper conversations</purpose>
+        <api_key>User-provided via settings</api_key>
+      </gemini>
+      <web_research>
+        <github>GitHub API for repository information (READMEs)</github>
+        <general>Generic fetch for documentation and articles</general>
+      </web_research>
+    </external_services>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Node.js v16+ (for running React development server)
+      - npm or yarn package manager
+      - Modern browser (Chrome, Firefox, Safari, Edge)
+      - Gemini API key (user provides in settings)
+      - Internet connection for YouTube, Gemini, and web research APIs
+    </environment_setup>
+  </prerequisites>
+
+  <feature_count>170</feature_count>
+
+  <security_and_access_control>
+    <user_roles>
+      <role name="single_user">
+        <permissions>
+          - Can access all features (no multi-user functionality)
+          - Can configure settings (name, API key, language)
+          - Can create, view, and manage learning sessions
+          - Can search and browse library
+        </permissions>
+        <protected_routes>
+          - No authentication required (single-user app)
+          - Settings accessible to configure API key before first use
+        </protected_routes>
+      </role>
+    </user_roles>
+    <authentication>
+      <method>None (single-user application, localStorage only)</method>
+      <session_timeout>N/A</session_timeout>
+      <password_requirements>N/A</password_requirements>
+    </authentication>
+    <sensitive_operations>
+      - Gemini API key stored in localStorage (masked in UI)
+      - API key validation on save
+      - Clear warning if API key is missing or invalid
+    </sensitive_operations>
+  </security_and_access_control>
+
+  <core_features>
+    <settings_and_configuration>
+      - Settings page with user name input
+      - Gemini API key input (masked display)
+      - Language preference selector
+      - Save settings to localStorage
+      - Load settings on app initialization
+      - API key validation (basic format check)
+      - Clear feedback on save success/failure
+      - Settings accessible from all pages
+    </settings_and_configuration>
+
+    <session_setup>
+      - YouTube URL input field on home page
+      - URL validation (ensure valid YouTube URL)
+      - Extract video transcript via youtube-transcript library
+      - Fetch video metadata (title, thumbnail, duration, channel)
+      - Display video thumbnail and title preview
+      - Parse transcript for referenced links (GitHub repos, docs, tools, articles)
+      - Analyze transcript for mentioned tools, frameworks, companies, concepts
+      - Perform targeted web research (GitHub READMEs, documentation snippets)
+      - Build mini knowledge base combining video + enriched sources
+      - Generate list of mini-topics (logical segments)
+      - Generate 1-3 questions per mini-topic based on content
+      - Generate closing summaries for each mini-topic
+      - Display loading states during each processing step
+      - Handle errors gracefully (network failures, invalid URLs, API errors)
+      - Estimate total questions (5 for <15min, 8-12 for 15-30min, 12-15 for 30-60min, 15-20 for 60+min)
+      - Estimate session duration
+      - Allow user to proceed or cancel
+    </session_setup>
+
+    <session_overview>
+      - Display video thumbnail and title
+      - Show list of topics to be covered
+      - Display total number of topics
+      - Show estimated number of questions
+      - Show estimated session duration
+      - "Start Learning" button to begin session
+      - Navigation back to home page
+    </session_overview>
+
+    <active_learning_session>
+      - Display current topic title
+      - Show progress indicator ("Topic X of Y")
+      - Display visual progress bar
+      - Show question count within topic if multiple questions
+      - Present question to user (before showing summary)
+      - Text area for user to type answer
+      - Submit answer button
+      - Evaluate answer using Gemini API
+      - Display conversational feedback (not just correct/incorrect)
+      - Provide quick tips and insights where relevant
+      - Reference enriched knowledge base for deeper context
+      - Display brief closing summary after feedback (few sentences max)
+      - "Continue" button to move to next mini-topic
+      - "Dig Deeper" button to open additional questions/chat
+      - "Bookmark" button to mark topic for later review
+      - "Skip" button to skip to next topic
+      - "Easier" button to request simplified next question
+      - "Harder" button to request more challenging next question
+      - Handle multiple questions per topic (show question 1 of N)
+      - Track which topics completed, skipped, bookmarked
+      - Track questions answered and accuracy
+      - "End Session" option (with confirmation)
+      - Save session state to localStorage on each action
+      - Persist session state across page refresh
+    </active_learning_session>
+
+    <dig_deeper_mode>
+      - Chat interface with Gemini for follow-up questions
+      - Display conversation history (user and assistant messages)
+      - Text input for user to ask questions
+      - Send button for each message
+      - "Generate More Questions" button for additional practice
+      - Use enriched knowledge base for substantive answers
+      - "Return to Session" button to exit dig deeper mode
+      - Persist dig deeper conversations to session data
+      - Display all past dig deeper exchanges in session notes
+      - Loading state during Gemini responses
+      - Error handling for API failures
+    </dig_deeper_mode>
+
+    <session_completion>
+      - Calculate and display summary score:
+        - Topics completed vs skipped
+        - Questions answered (total count)
+        - Accuracy/understanding rating (based on feedback quality)
+        - Topics bookmarked for review
+        - Topics where user chose to dig deeper
+      - Generate full session notes artifact containing:
+        - Video thumbnail and title
+        - Video URL
+        - Session date/time
+        - Overview of topics covered
+        - For each mini-topic:
+          - The questions asked
+          - User's answers
+          - Feedback given
+          - Closing summary
+          - Whether user dug deeper (and that conversation)
+          - Whether bookmarked
+        - Source snippets with clickable links
+        - Final score/stats
+      - Automatically save session to library
+      - "Start New Session" button
+      - "View in Library" button
+      - Display session completion in visually clear format
+    </session_completion>
+
+    <library>
+      - Display grid/list of past sessions
+      - Show video thumbnail for each session
+      - Display video title and date
+      - Show brief stats (topics completed, questions answered)
+      - Search functionality (by video title, topic titles, date)
+      - Filter by date range
+      - Filter by bookmarked topics (sessions with bookmarks)
+      - Sort options (date newest/oldest, completion rate, duration)
+      - Click session to view full session notes
+      - Empty state when no sessions exist
+      - Responsive grid layout (desktop/tablet/mobile)
+      - Pagination or infinite scroll for many sessions
+    </library>
+
+    <session_notes_detail>
+      - Display full session artifact in readable format
+      - Show video thumbnail, title, URL, date/time
+      - Display all Q&A exchanges with:
+        - Question text
+        - User's answer
+        - Feedback received
+        - Closing summary
+      - Highlight bookmarked topics visually
+      - Show dig deeper conversations (if any) under respective topics
+      - Display source snippets with clickable links
+      - Show final score/stats summary
+      - Export option (future: download as PDF/Markdown)
+      - Back to library button
+      - "Start Similar Session" option (reuse same video)
+    </session_notes_detail>
+
+    <neobrutalism_design_system>
+      - Hard black borders (2-4px) on all components
+      - Solid, punchy accent colors (electric yellow primary, cyan secondary)
+      - Offset box shadows (4-8px solid black offset)
+      - Bold sans-serif for headings (Space Grotesk or similar)
+      - Monospace for code/technical content (JetBrains Mono or similar)
+      - Chunky rectangular buttons with hard shadows
+      - Obvious hover states (shadow offset increase)
+      - Solid backgrounds, no gradients
+      - Functional, bold, no-nonsense aesthetic
+      - Minimal and clean layout
+      - Clear visual hierarchy
+      - Generous whitespace
+      - High contrast for readability
+    </neobrutalism_design_system>
+
+    <responsive_design>
+      - Mobile-responsive layouts for all pages
+      - Desktop layout optimized at 1920px width
+      - Tablet layout optimized at 768px width
+      - Mobile layout optimized at 375px width
+      - Touch-friendly buttons and inputs on mobile (44px min)
+      - Modals fit within viewport on all screen sizes
+      - Navigation collapses appropriately on mobile
+      - Tables scroll horizontally if needed on small screens
+      - No horizontal scroll on standard viewports
+      - Text truncates or wraps correctly (no overflow)
+    </responsive_design>
+
+    <performance_and_optimization>
+      - Lazy load session notes in library (only load when viewing)
+      - Debounce search input in library
+      - Cache Gemini API responses where appropriate
+      - Optimize localStorage reads/writes
+      - Show loading spinners during all async operations
+      - Cancel pending API requests when navigating away
+      - Handle large transcripts efficiently (chunking if needed)
+      - No console errors during normal operation
+      - Graceful degradation if API quota exceeded
+    </performance_and_optimization>
+
+    <error_handling>
+      - Network failure shows user-friendly error messages
+      - Invalid YouTube URL shows clear error
+      - Gemini API errors handled gracefully (show retry option)
+      - Missing API key shows warning and redirect to settings
+      - Transcript extraction failure shows helpful message
+      - Web research failures don't block session creation (partial data OK)
+      - localStorage quota exceeded handled gracefully
+      - Invalid data in localStorage detected and cleared
+      - Empty states for all list views
+      - 404 page for non-existent routes
+      - Timeout handling for long-running operations
+    </error_handling>
+  </core_features>
+
+  <database_schema>
+    <tables>
+      <settings>
+        - userName: string
+        - geminiApiKey: string (encrypted/obfuscated)
+        - language: string
+      </settings>
+      <sessions>
+        - id: string (UUID)
+        - createdAt: timestamp
+        - completedAt: timestamp | null
+        - video: {
+            url: string,
+            title: string,
+            thumbnailUrl: string,
+            duration: number,
+            channel: string
+          }
+        - knowledgeBase: {
+            sources: [{
+              url: string,
+              title: string,
+              snippet: string,
+              type: 'github' | 'documentation' | 'article' | 'other'
+            }]
+          }
+        - topics: [{
+            id: string,
+            title: string,
+            summary: string,
+            questions: [{
+              id: string,
+              text: string,
+              difficulty: 'standard' | 'easier' | 'harder',
+              userAnswer: string | null,
+              feedback: string | null,
+              answeredAt: timestamp | null
+            }],
+            digDeeperConversation: [{
+              role: 'user' | 'assistant',
+              content: string,
+              timestamp: timestamp
+            }] | null,
+            bookmarked: boolean,
+            skipped: boolean,
+            completed: boolean
+          }]
+        - score: {
+            topicsCompleted: number,
+            topicsSkipped: number,
+            questionsAnswered: number,
+            bookmarkedTopics: number,
+            digDeeperCount: number
+          }
+      </sessions>
+      <library>
+        - sessions: Session[] (array of all sessions from above)
+      </library>
+    </tables>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <youtube_apis>
+      - Extract transcript via youtube-transcript library
+      - Fetch metadata via oEmbed API or similar
+    </youtube_apis>
+    <gemini_api>
+      - POST analyze transcript and extract topics
+      - POST generate questions for each topic
+      - POST evaluate user answer and provide feedback
+      - POST generate dig deeper questions
+      - POST chat conversation in dig deeper mode
+      - POST summarize knowledge base snippets
+    </gemini_api>
+    <web_research>
+      - GET GitHub API for repository READMEs
+      - GET documentation and article content via fetch
+    </web_research>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <main_structure>
+      - Global navigation bar or sidebar with links to:
+        - Home / New Session
+        - Library
+        - Settings
+      - Main content area for page content
+      - Footer with app name and version (optional)
+    </main_structure>
+    <pages>
+      <home>
+        - Hero section with app description
+        - YouTube URL input field (prominent)
+        - "Start Session" button
+        - Recent sessions quick access (3-5 most recent)
+      </home>
+      <settings>
+        - Form with user name, API key, language
+        - Save button
+        - Clear feedback on save
+      </settings>
+      <session_overview>
+        - Video thumbnail and title (prominent)
+        - Topic list preview
+        - Question count and duration estimates
+        - "Start Learning" button (primary CTA)
+        - Back to home link
+      </session_overview>
+      <active_session>
+        - Progress bar at top
+        - Current topic title
+        - Question/answer interface (chat-like)
+        - Difficulty toggle buttons (Easier/Harder)
+        - Navigation buttons (Continue, Dig Deeper, Bookmark, Skip)
+        - End session option (less prominent)
+      </active_session>
+      <dig_deeper>
+        - Chat interface (user and assistant messages)
+        - Text input at bottom
+        - "Generate More Questions" button
+        - "Return to Session" button
+      </dig_deeper>
+      <session_complete>
+        - Score summary (large, visual)
+        - Full session notes preview (scrollable)
+        - "Start New Session" and "View in Library" buttons
+      </session_complete>
+      <library>
+        - Search bar at top
+        - Filter/sort controls
+        - Grid of session cards (thumbnail, title, date, stats)
+        - Click card to view full notes
+      </library>
+      <session_notes>
+        - Full session artifact display
+        - Video info at top
+        - Q&A exchanges organized by topic
+        - Source snippets section
+        - Back to library button
+      </session_notes>
+    </pages>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      - Primary: #FFDE59 (Electric yellow)
+      - Secondary: #00D4FF (Cyan accent)
+      - Background: #FFFEF0 (Off-white)
+      - Surface: #FFFFFF (White cards)
+      - Text: #1A1A1A (Near black)
+      - Border: #000000 (Pure black borders)
+      - Success: #00FF85 (Bright green)
+      - Error: #FF4444 (Bright red)
+    </color_palette>
+    <typography>
+      - Heading font: 'Space Grotesk' or similar bold sans-serif
+      - Body font: 'Inter' or similar clean sans-serif
+      - Mono font: 'JetBrains Mono' or similar monospace
+    </typography>
+    <borders_and_shadows>
+      - Border width: 3px
+      - Border style: solid black
+      - Border radius: 0 (sharp corners)
+      - Shadow: 4px 4px 0 #000000 (offset shadow)
+      - Shadow hover: 6px 6px 0 #000000 (increased on hover)
+    </borders_and_shadows>
+    <spacing>
+      - XS: 4px
+      - SM: 8px
+      - MD: 16px
+      - LG: 24px
+      - XL: 32px
+    </spacing>
+  </design_system>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Project Setup and Design System</title>
+      <tasks>
+        - Initialize React project with Vite or Create React App
+        - Set up React Router for navigation
+        - Create CSS variables for neobrutalism design system
+        - Implement base UI components (Button, Card, Input, etc.)
+        - Set up localStorage utility functions
+        - Create app shell with navigation
+      </tasks>
+    </step>
+    <step number="2">
+      <title>Settings and Configuration</title>
+      <tasks>
+        - Create Settings page with form
+        - Implement settings persistence to localStorage
+        - Add API key validation
+        - Create settings context/state management
+        - Add navigation to settings from global nav
+      </tasks>
+    </step>
+    <step number="3">
+      <title>Session Setup - YouTube Integration</title>
+      <tasks>
+        - Create Home page with URL input
+        - Integrate youtube-transcript library
+        - Fetch video metadata (title, thumbnail, duration)
+        - Implement URL validation
+        - Add loading states and error handling
+        - Create video preview component
+      </tasks>
+    </step>
+    <step number="4">
+      <title>Knowledge Base Enrichment</title>
+      <tasks>
+        - Parse transcript for links and mentions
+        - Implement GitHub API integration
+        - Implement web fetching for documentation
+        - Build knowledge base data structure
+        - Handle API errors gracefully
+        - Limit research depth (primary sources only)
+      </tasks>
+    </step>
+    <step number="5">
+      <title>Topic and Question Generation</title>
+      <tasks>
+        - Integrate Gemini API for transcript analysis
+        - Generate mini-topics from transcript
+        - Generate questions for each topic (1-3 per topic)
+        - Generate closing summaries
+        - Implement question quantity logic based on video length
+        - Create session overview display
+      </tasks>
+    </step>
+    <step number="6">
+      <title>Active Learning Session - Q&A Flow</title>
+      <tasks>
+        - Create active session page layout
+        - Implement question display component
+        - Create answer input and submit
+        - Integrate Gemini for answer evaluation
+        - Display feedback and summary
+        - Add progress tracking (topic X of Y, progress bar)
+        - Implement continue navigation
+      </tasks>
+    </step>
+    <step number="7">
+      <title>Session Controls and Features</title>
+      <tasks>
+        - Add difficulty adjustment (Easier/Harder buttons)
+        - Implement Skip functionality
+        - Implement Bookmark functionality
+        - Add End Session option with confirmation
+        - Persist session state to localStorage
+        - Handle page refresh mid-session
+      </tasks>
+    </step>
+    <step number="8">
+      <title>Dig Deeper Mode</title>
+      <tasks>
+        - Create dig deeper chat interface
+        - Implement Gemini conversation API
+        - Display conversation history
+        - Add "Generate More Questions" feature
+        - Implement "Return to Session" navigation
+        - Persist dig deeper conversations to session
+      </tasks>
+    </step>
+    <step number="9">
+      <title>Session Completion and Notes</title>
+      <tasks>
+        - Calculate session score (topics, questions, accuracy)
+        - Generate full session notes artifact
+        - Create session complete page with summary
+        - Implement session notes detail view
+        - Add source snippets display with clickable links
+        - Highlight bookmarked topics
+      </tasks>
+    </step>
+    <step number="10">
+      <title>Library and Search</title>
+      <tasks>
+        - Create library page with session grid
+        - Implement search functionality (video title, topics, date)
+        - Add filter options (date range, bookmarked)
+        - Add sort options (date, completion rate)
+        - Create session card component with thumbnail
+        - Handle empty state
+        - Link to session notes detail view
+      </tasks>
+    </step>
+    <step number="11">
+      <title>Responsive Design and Mobile</title>
+      <tasks>
+        - Implement responsive layouts for all pages
+        - Test at 375px (mobile), 768px (tablet), 1920px (desktop)
+        - Ensure touch-friendly buttons on mobile
+        - Optimize navigation for small screens
+        - Test modals and overlays on mobile
+      </tasks>
+    </step>
+    <step number="12">
+      <title>Polish, Error Handling, and Testing</title>
+      <tasks>
+        - Add comprehensive error handling for all API calls
+        - Implement loading spinners and feedback messages
+        - Add empty states for all list views
+        - Optimize performance (debounce search, lazy load)
+        - Test all user flows end-to-end
+        - Fix any console errors
+        - Ensure localStorage quota handling
+        - Add 404 page for invalid routes
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - User can paste YouTube URL and create learning session
+      - Questions are generated based on actual video content
+      - Knowledge base enrichment works (pulls GitHub/docs info)
+      - Answer evaluation provides meaningful feedback (not generic)
+      - Dig deeper mode allows conversational follow-up
+      - Sessions persist to library and can be reviewed
+      - Search and filter work in library
+      - Bookmark and skip functionality work correctly
+      - Difficulty adjustment changes question complexity
+      - Session state persists across page refresh
+    </functionality>
+    <user_experience>
+      - Session duration matches goal (10-20 min for typical video)
+      - Questions are conversational, not quiz-like
+      - Feedback is specific and helpful
+      - Progress is always visible (topic X of Y)
+      - No confusing error messages or crashes
+      - Clear calls-to-action at each step
+      - Responsive and works well on mobile
+    </user_experience>
+    <technical_quality>
+      - No console errors during normal operation
+      - API errors handled gracefully with retry options
+      - localStorage doesn't exceed quota
+      - All external API integrations work reliably
+      - Code is modular and maintainable
+      - Loading states shown for all async operations
+      - No memory leaks on long sessions
+    </technical_quality>
+    <design_polish>
+      - Neobrutalism design system applied consistently
+      - Hard black borders, chunky buttons, offset shadows
+      - Electric yellow and cyan accents used appropriately
+      - Typography hierarchy clear and readable
+      - High contrast for readability
+      - Generous whitespace, not cramped
+      - Hover states obvious and satisfying
+      - Overall aesthetic is bold and functional
+    </design_polish>
+  </success_criteria>
+</project_specification>
