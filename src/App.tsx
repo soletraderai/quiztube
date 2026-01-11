@@ -8,12 +8,25 @@ import SessionOverview from './pages/SessionOverview';
 import ActiveSession from './pages/ActiveSession';
 import SessionNotes from './pages/SessionNotes';
 import NotFound from './pages/NotFound';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import EmailVerification from './pages/EmailVerification';
 
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
+          {/* Auth routes - no layout */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email/:token" element={<EmailVerification />} />
+
+          {/* App routes with layout */}
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="settings" element={<Settings />} />
