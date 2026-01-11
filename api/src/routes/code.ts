@@ -64,8 +64,9 @@ router.post('/snippets', requirePro, async (req: AuthenticatedRequest, res: Resp
 // GET /api/sessions/:id/snippets (defined here for convenience)
 router.get('/sessions/:id/snippets', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const session = await prisma.session.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!session) {
@@ -73,7 +74,7 @@ router.get('/sessions/:id/snippets', requirePro, async (req: AuthenticatedReques
     }
 
     const snippets = await prisma.codeSnippet.findMany({
-      where: { sessionId: req.params.id },
+      where: { sessionId: id },
       orderBy: { createdAt: 'asc' },
     });
 

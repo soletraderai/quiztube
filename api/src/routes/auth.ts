@@ -252,7 +252,7 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
     });
 
     // Find matching token
-    let validToken = null;
+    let validToken: (typeof tokens)[number] | null = null;
     for (const token of tokens) {
       const match = await bcrypt.compare(refreshToken, token.tokenHash);
       if (match) {
@@ -281,7 +281,7 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
 // GET /api/auth/verify-email/:token
 router.get('/verify-email/:token', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
 
     const user = await prisma.user.findFirst({
       where: { emailVerificationToken: token },

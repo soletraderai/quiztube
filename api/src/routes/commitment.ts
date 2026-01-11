@@ -62,7 +62,7 @@ router.get('/calendar', async (req: AuthenticatedRequest, res: Response, next: N
       orderBy: { date: 'asc' },
     });
 
-    const calendar = [];
+    const calendar: { date: string; commitmentMet: boolean; timeSpentMinutes: number; vacationMode: boolean }[] = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);

@@ -68,8 +68,9 @@ router.post('/', requirePro, async (req: AuthenticatedRequest, res: Response, ne
 // GET /api/goals/:id
 router.get('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const goal = await prisma.goal.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
       include: { milestones: true },
     });
 
@@ -86,8 +87,9 @@ router.get('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, 
 // PATCH /api/goals/:id
 router.patch('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const goal = await prisma.goal.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!goal) {
@@ -95,7 +97,7 @@ router.patch('/:id', requirePro, async (req: AuthenticatedRequest, res: Response
     }
 
     const updated = await prisma.goal.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         ...req.body,
         ...(req.body.deadline && { deadline: new Date(req.body.deadline) }),
@@ -137,8 +139,9 @@ router.patch('/:id', requirePro, async (req: AuthenticatedRequest, res: Response
 // DELETE /api/goals/:id
 router.delete('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const goal = await prisma.goal.deleteMany({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (goal.count === 0) {
@@ -154,8 +157,9 @@ router.delete('/:id', requirePro, async (req: AuthenticatedRequest, res: Respons
 // GET /api/goals/:id/milestones
 router.get('/:id/milestones', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const goal = await prisma.goal.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!goal) {
@@ -163,7 +167,7 @@ router.get('/:id/milestones', requirePro, async (req: AuthenticatedRequest, res:
     }
 
     const milestones = await prisma.goalMilestone.findMany({
-      where: { goalId: req.params.id },
+      where: { goalId: id },
       orderBy: { milestonePercentage: 'asc' },
     });
 

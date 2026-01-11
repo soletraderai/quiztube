@@ -22,7 +22,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
 // POST /api/channels/:channelId/follow
 router.post('/:channelId/follow', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { channelId } = req.params;
+    const channelId = req.params.channelId as string;
     const { channelName, channelThumbnail } = req.body;
 
     const channel = await prisma.followedChannel.upsert({
@@ -50,7 +50,7 @@ router.post('/:channelId/follow', async (req: AuthenticatedRequest, res: Respons
 // DELETE /api/channels/:channelId/unfollow
 router.delete('/:channelId/unfollow', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { channelId } = req.params;
+    const channelId = req.params.channelId as string;
 
     await prisma.followedChannel.deleteMany({
       where: {

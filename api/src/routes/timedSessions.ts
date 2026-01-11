@@ -42,8 +42,9 @@ router.post('/', requirePro, async (req: AuthenticatedRequest, res: Response, ne
 // GET /api/timed-sessions/:id
 router.get('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const timedSession = await prisma.timedSession.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!timedSession) {
@@ -65,8 +66,9 @@ router.get('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, 
 // PATCH /api/timed-sessions/:id
 router.patch('/:id', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const timedSession = await prisma.timedSession.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!timedSession) {
@@ -76,7 +78,7 @@ router.patch('/:id', requirePro, async (req: AuthenticatedRequest, res: Response
     const { questionsAnswered, questionsCorrect, timeUsedSeconds, status } = req.body;
 
     const updated = await prisma.timedSession.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         ...(questionsAnswered !== undefined && { questionsAnswered }),
         ...(questionsCorrect !== undefined && { questionsCorrect }),

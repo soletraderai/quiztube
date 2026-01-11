@@ -84,7 +84,7 @@ router.get('/weekly-chart', async (req: AuthenticatedRequest, res: Response, nex
       orderBy: { date: 'asc' },
     });
 
-    const chartData = [];
+    const chartData: { date: string; timeSpentMinutes: number; questionsAnswered: number; commitmentMet: boolean }[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
       date.setHours(0, 0, 0, 0);
@@ -120,7 +120,7 @@ router.get('/monthly-chart', async (req: AuthenticatedRequest, res: Response, ne
       orderBy: { date: 'asc' },
     });
 
-    const chartData = [];
+    const chartData: { date: string; timeSpentMinutes: number; questionsAnswered: number; commitmentMet: boolean }[] = [];
     for (let i = 29; i >= 0; i--) {
       const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
       date.setHours(0, 0, 0, 0);

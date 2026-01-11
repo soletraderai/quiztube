@@ -27,8 +27,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
 // GET /api/topics/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const topic = await prisma.topic.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
       include: { questions: true },
     });
 
@@ -45,8 +46,9 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
 // PATCH /api/topics/:id
 router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const topic = await prisma.topic.updateMany({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
       data: req.body,
     });
 
@@ -54,7 +56,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
       throw new AppError(404, 'Topic not found', 'TOPIC_NOT_FOUND');
     }
 
-    const updated = await prisma.topic.findUnique({ where: { id: req.params.id } });
+    const updated = await prisma.topic.findUnique({ where: { id } });
     res.json(updated);
   } catch (error) {
     next(error);
@@ -81,10 +83,11 @@ router.get('/due-for-review', async (req: AuthenticatedRequest, res: Response, n
 // POST /api/topics/:id/review
 router.post('/:id/review', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const id = req.params.id as string;
     const { quality } = req.body; // 0-5 SM-2 quality rating
 
     const topic = await prisma.topic.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!topic) {
@@ -124,7 +127,7 @@ router.post('/:id/review', async (req: AuthenticatedRequest, res: Response, next
     }
 
     const updated = await prisma.topic.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         easeFactor,
         reviewIntervalDays: interval,

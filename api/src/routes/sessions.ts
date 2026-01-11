@@ -38,7 +38,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
 // GET /api/sessions/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const session = await prisma.session.findFirst({
       where: { id, userId: req.user!.id },
       include: {
@@ -86,7 +86,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
 // PATCH /api/sessions/:id
 router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const session = await prisma.session.updateMany({
       where: { id, userId: req.user!.id },
       data: req.body,
@@ -106,7 +106,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
 // DELETE /api/sessions/:id
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const session = await prisma.session.deleteMany({
       where: { id, userId: req.user!.id },
     });
@@ -124,7 +124,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: Nex
 // GET /api/sessions/:id/sources
 router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const session = await prisma.session.findFirst({
       where: { id, userId: req.user!.id },
     });
@@ -146,7 +146,7 @@ router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next
 // GET /api/sessions/:id/summary
 router.get('/:id/summary', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const session = await prisma.session.findFirst({
       where: { id, userId: req.user!.id },
     });
