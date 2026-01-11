@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Toast from '../components/ui/Toast';
+import { FeedChannelSkeleton } from '../components/ui/Skeleton';
 import { useAuthStore } from '../stores/authStore';
 
 interface FollowedChannel {
@@ -99,9 +100,16 @@ export default function Feed() {
           <h1 className="font-heading text-4xl font-bold text-text">Your Feed</h1>
           <p className="font-body text-lg text-text/70">Loading your personalized feed...</p>
         </div>
-        <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-        </div>
+
+        {/* Skeleton loading screens */}
+        <Card>
+          <h2 className="font-heading text-2xl font-bold text-text mb-4">Followed Channels</h2>
+          <div className="space-y-4">
+            <FeedChannelSkeleton />
+            <FeedChannelSkeleton />
+            <FeedChannelSkeleton />
+          </div>
+        </Card>
       </div>
     );
   }

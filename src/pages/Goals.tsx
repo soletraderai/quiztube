@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Toast from '../components/ui/Toast';
 import ProgressBar from '../components/ui/ProgressBar';
+import { GoalCardSkeleton } from '../components/ui/Skeleton';
 import { useAuthStore } from '../stores/authStore';
 
 interface Goal {
@@ -537,8 +538,12 @@ export default function Goals() {
           <h1 className="font-heading text-4xl font-bold text-text">Your Goals</h1>
           <p className="font-body text-lg text-text/70">Loading your goals...</p>
         </div>
-        <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+
+        {/* Skeleton loading screens */}
+        <div className="space-y-4">
+          <GoalCardSkeleton />
+          <GoalCardSkeleton />
+          <GoalCardSkeleton />
         </div>
       </div>
     );

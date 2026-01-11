@@ -5,6 +5,7 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
+import Skeleton, { SettingsSectionSkeleton } from '../components/ui/Skeleton';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
 import type { TutorPersonality } from '../types';
@@ -1160,8 +1161,35 @@ export default function Settings() {
           </h2>
 
           {loadingInsights ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
+            <div className="space-y-4">
+              {/* Skeleton for Best Learning Time */}
+              <div className="p-4 border-3 border-border/20">
+                <div className="flex items-center gap-3">
+                  <Skeleton variant="circular" width={40} height={40} />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton variant="text" width="40%" height={18} />
+                    <Skeleton variant="text" width="60%" height={14} />
+                  </div>
+                </div>
+              </div>
+              {/* Skeleton for Sessions Analyzed */}
+              <div className="p-4 border-3 border-border/20">
+                <div className="flex items-center gap-3">
+                  <Skeleton variant="circular" width={40} height={40} />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton variant="text" width="35%" height={18} />
+                    <Skeleton variant="text" width="50%" height={14} />
+                  </div>
+                </div>
+              </div>
+              {/* Skeleton for Confidence */}
+              <div className="p-4 border-3 border-border/20 space-y-2">
+                <div className="flex justify-between">
+                  <Skeleton variant="text" width="30%" height={18} />
+                  <Skeleton variant="text" width="10%" height={18} />
+                </div>
+                <Skeleton height={16} />
+              </div>
             </div>
           ) : learningModel?.hasData ? (
             <div className="space-y-6">
