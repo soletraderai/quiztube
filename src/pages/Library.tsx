@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
+import { StaggeredItem } from '../components/ui/StaggeredList';
 import { useSessionStore } from '../stores/sessionStore';
 
 const ITEMS_PER_PAGE = 6; // 6 items for a 3-column grid layout
@@ -305,10 +306,10 @@ export default function Library() {
       <h2 className="sr-only">Sessions</h2>
       {filteredSessions.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {paginatedSessions.map((session) => (
+          {paginatedSessions.map((session, index) => (
+            <StaggeredItem key={session.id} index={index} baseDelay={100} staggerDelay={75}>
             <Card
-              key={session.id}
-              className="cursor-pointer hover:shadow-brutal-hover transition-shadow"
+              className="cursor-pointer hover:shadow-brutal-hover transition-shadow h-full"
               onClick={() => navigate(`/session/${session.id}/notes`)}
             >
               {/* Thumbnail */}
@@ -357,6 +358,7 @@ export default function Library() {
                 </span>
               </div>
             </Card>
+            </StaggeredItem>
           ))}
         </div>
       ) : null}

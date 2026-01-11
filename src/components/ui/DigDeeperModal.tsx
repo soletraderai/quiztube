@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Button from './Button';
 import type { Topic, ChatMessage } from '../../types';
 import { digDeeper, generateAlternateQuestion } from '../../services/gemini';
+import { createPortal } from 'react-dom';
 
 interface DigDeeperModalProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ export default function DigDeeperModal({
   const [loading, setLoading] = useState(false);
   const [generatingQuestion, setGeneratingQuestion] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -36,12 +39,54 @@ export default function DigDeeperModal({
     }
   }, [conversation]);
 
+  // Handle open/close with animation
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      setIsExiting(false);
+      document.body.style.overflow = 'hidden';
+    } else if (shouldRender) {
+      setIsExiting(true);
+      const timer = setTimeout(() => {
+        setShouldRender(false);
+        setIsExiting(false);
+        document.body.style.overflow = '';
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, shouldRender]);
+
   // Focus input when modal opens
   useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (shouldRender && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [shouldRender]);
+
+  // Handle escape key to close
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
+
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   // Handle sending a message
   const handleSend = async () => {
@@ -124,19 +169,24 @@ export default function DigDeeperModal({
     });
   };
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${
+        isExiting ? 'modal-overlay-exit' : 'modal-overlay'
+      }`}
+      onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
       aria-labelledby="dig-deeper-title"
     >
-      <div className="bg-surface border-3 border-border shadow-brutal w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div
+        className={`bg-surface border-3 border-border shadow-brutal w-full max-w-2xl max-h-[90vh] flex flex-col ${
+          isExiting ? 'modal-content-exit' : 'modal-content'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 border-b-3 border-border bg-secondary/10">
           <div className="flex items-center justify-between">
@@ -272,4 +322,6 @@ export default function DigDeeperModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

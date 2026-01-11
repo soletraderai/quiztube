@@ -6,6 +6,7 @@ import Input from '../components/ui/Input';
 import Toast from '../components/ui/Toast';
 import ProgressBar from '../components/ui/ProgressBar';
 import { GoalCardSkeleton } from '../components/ui/Skeleton';
+import { StaggeredItem } from '../components/ui/StaggeredList';
 import { useAuthStore } from '../stores/authStore';
 
 interface Goal {
@@ -577,8 +578,8 @@ export default function Goals() {
 
       {/* Wizard Modal */}
       {showWizard && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-overlay">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto modal-content">
             {/* Wizard Progress */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
@@ -593,8 +594,8 @@ export default function Goals() {
 
       {/* Edit Goal Modal */}
       {editingGoal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-overlay">
+          <Card className="w-full max-w-md modal-content">
             <h3 className="font-heading text-xl font-bold text-text mb-4">Edit Goal</h3>
             <p className="text-text/70 mb-6">{editingGoal.title}</p>
 
@@ -664,10 +665,10 @@ export default function Goals() {
             </button>
           </div>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {suggestions.map((suggestion) => (
+            {suggestions.map((suggestion, index) => (
+              <StaggeredItem key={suggestion.id} index={index} baseDelay={100} staggerDelay={75}>
               <div
-                key={suggestion.id}
-                className="p-4 border-2 border-border bg-surface hover:shadow-brutal transition-all cursor-pointer"
+                className="p-4 border-2 border-border bg-surface hover:shadow-brutal transition-all cursor-pointer h-full"
                 onClick={() => handleUseSuggestion(suggestion)}
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -679,6 +680,7 @@ export default function Goals() {
                 <p className="text-sm text-text/70 mb-2">{suggestion.description}</p>
                 <p className="text-xs text-text/50 italic">{suggestion.reason}</p>
               </div>
+              </StaggeredItem>
             ))}
           </div>
         </Card>
@@ -747,8 +749,9 @@ export default function Goals() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {goals.map((goal) => (
-            <Card key={goal.id} className="flex flex-col">
+          {goals.map((goal, index) => (
+            <StaggeredItem key={goal.id} index={index} baseDelay={100} staggerDelay={75}>
+            <Card className="flex flex-col h-full">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-text">
@@ -836,6 +839,7 @@ export default function Goals() {
                 )}
               </div>
             </Card>
+            </StaggeredItem>
           ))}
         </div>
       )}

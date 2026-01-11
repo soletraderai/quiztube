@@ -561,8 +561,8 @@ export default function Settings() {
 
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-background border-3 border-border shadow-brutal max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-background border-3 border-border shadow-brutal max-w-md w-full p-6 modal-content">
             <h3 className="font-heading text-xl font-bold text-text mb-3">
               Reset Learning Model?
             </h3>
@@ -594,8 +594,8 @@ export default function Settings() {
 
       {/* Delete Account Confirmation Modal */}
       {showDeleteAccountConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-background border-3 border-border shadow-brutal max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-background border-3 border-border shadow-brutal max-w-md w-full p-6 modal-content">
             <h3 className="font-heading text-xl font-bold text-danger mb-3">
               Delete Account Permanently?
             </h3>

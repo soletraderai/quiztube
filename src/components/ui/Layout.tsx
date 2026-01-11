@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import OfflineBanner from './OfflineBanner';
 import Breadcrumb from './Breadcrumb';
+import PageTransition from './PageTransition';
 import { useAuthStore } from '../../stores/authStore';
 
 const API_BASE = 'http://localhost:3001/api';
@@ -305,7 +306,9 @@ export default function Layout() {
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb />
         <ErrorBoundary>
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </ErrorBoundary>
       </main>
 

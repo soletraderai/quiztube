@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Toast from '../components/ui/Toast';
 import { FeedChannelSkeleton } from '../components/ui/Skeleton';
+import { StaggeredItem } from '../components/ui/StaggeredList';
 import { useAuthStore } from '../stores/authStore';
 
 interface FollowedChannel {
@@ -163,8 +164,9 @@ export default function Feed() {
           </h2>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {feedData.channels.map((channel) => (
-              <Card key={channel.id} className="flex flex-col">
+            {feedData.channels.map((channel, index) => (
+              <StaggeredItem key={channel.id} index={index} baseDelay={100} staggerDelay={75}>
+              <Card className="flex flex-col h-full">
                 <div className="flex items-center gap-3 mb-4">
                   {channel.channelThumbnail ? (
                     <img
@@ -202,6 +204,7 @@ export default function Feed() {
                   </Button>
                 </div>
               </Card>
+              </StaggeredItem>
             ))}
           </div>
         </div>
