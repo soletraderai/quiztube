@@ -1,0 +1,1698 @@
+<phase_specification>
+  <phase_number>2</phase_number>
+  <depends_on>phase1 (app_spec.txt)</depends_on>
+
+  <phase_goals>
+    Transform Teachy from a client-side localStorage application into a full SaaS product with user authentication, cloud persistence, subscription billing, and 15 new features focused on habit formation, personalization, and long-term retention. This phase introduces backend infrastructure, replaces user-provided Gemini API keys with a server-side proxy, and implements Free/Pro subscription tiers.
+  </phase_goals>
+
+  <design_philosophy>
+    <principle name="hyper_personalisation">App observes behaviour and adapts automatically - creates loyalty, users feel understood</principle>
+    <principle name="professional_aesthetic">No gamification, points, badges, streaks, or emojis - respects adult users, justifies premium pricing</principle>
+    <principle name="premium_feel">Polished animations, considered typography and spacing - differentiates from utilitarian competitors</principle>
+    <principle name="respect_for_users">No dark patterns, guilt messaging, or manipulation - builds trust, reduces churn</principle>
+  </design_philosophy>
+
+  <feature_count>385</feature_count>
+
+  <business_model>
+    <free_tier>
+      <price>$0</price>
+      <limits>
+        - 3 sessions per month
+        - 10 questions per session maximum
+        - Basic progress tracking only
+        - Default tutor personality (Coach) only
+        - No: email prompts, export, spaced repetition, code editor
+      </limits>
+    </free_tier>
+    <pro_tier>
+      <price>$12/month or $99/year</price>
+      <includes>
+        - Everything unlimited
+        - All tutor personalities
+        - Email prompts
+        - Export (PDF/Markdown)
+        - Full spaced repetition
+        - Code editor
+        - Knowledge map
+        - Custom goals
+        - Priority support
+      </includes>
+    </pro_tier>
+  </business_model>
+
+  <technology_stack>
+    <backend>
+      <runtime>Node.js 20+ with Express</runtime>
+      <language>TypeScript</language>
+      <orm>Prisma</orm>
+      <validation>Zod</validation>
+    </backend>
+    <database>
+      <primary>PostgreSQL 15+</primary>
+      <cache>Redis (rate limiting, session cache)</cache>
+    </database>
+    <authentication>
+      <method>Custom JWT with bcrypt password hashing</method>
+      <oauth>Google OAuth 2.0</oauth>
+      <tokens>Access token (15min) + Refresh token (7 days)</tokens>
+    </authentication>
+    <payments>
+      <provider>Stripe</provider>
+      <features>Checkout, Subscriptions, Webhooks, Customer Portal</features>
+    </payments>
+    <email>
+      <provider>Resend (production)</provider>
+      <local_testing>Mailhog (Docker container)</local_testing>
+      <inbound>Resend inbound webhooks for email replies</inbound>
+    </email>
+    <ai>
+      <provider>Gemini API</provider>
+      <access>Server-side proxy only (API key in environment variables)</access>
+      <note>Remove user-provided API key functionality from frontend</note>
+    </ai>
+    <frontend>
+      <framework>React (existing)</framework>
+      <state>TanStack Query (server state), Zustand (client state)</state>
+      <animations>Framer Motion</animations>
+      <http>Axios or fetch with interceptors</http>
+    </frontend>
+    <local_development>
+      <orchestration>Docker Compose</orchestration>
+      <services>
+        - postgres: PostgreSQL database
+        - redis: Rate limiting and caching
+        - api: Node.js backend
+        - mailhog: Local email testing (catches all outbound)
+      </services>
+    </local_development>
+    <production>
+      <hosting>Digital Ocean</hosting>
+      <options>App Platform, Droplets with Docker, or Kubernetes</options>
+      <database>Digital Ocean Managed PostgreSQL</database>
+      <redis>Digital Ocean Managed Redis or self-hosted</redis>
+    </production>
+  </technology_stack>
+
+  <docker_compose_structure>
+    <service name="postgres">
+      <image>postgres:15-alpine</image>
+      <ports>5432:5432</ports>
+      <volumes>postgres_data:/var/lib/postgresql/data</volumes>
+      <environment>
+        - POSTGRES_USER=teachy
+        - POSTGRES_PASSWORD=teachy_dev
+        - POSTGRES_DB=teachy
+      </environment>
+    </service>
+    <service name="redis">
+      <image>redis:7-alpine</image>
+      <ports>6379:6379</ports>
+    </service>
+    <service name="mailhog">
+      <image>mailhog/mailhog</image>
+      <ports>
+        - 1025:1025 (SMTP)
+        - 8025:8025 (Web UI)
+      </ports>
+    </service>
+    <service name="api">
+      <build>./api</build>
+      <ports>3001:3001</ports>
+      <depends_on>postgres, redis</depends_on>
+      <environment>
+        - DATABASE_URL=postgresql://teachy:teachy_dev@postgres:5432/teachy
+        - REDIS_URL=redis://redis:6379
+        - GEMINI_API_KEY=${GEMINI_API_KEY}
+        - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+        - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+        - JWT_SECRET=${JWT_SECRET}
+        - SMTP_HOST=mailhog
+        - SMTP_PORT=1025
+      </environment>
+      <volumes>./api:/app</volumes>
+    </service>
+  </docker_compose_structure>
+
+  <rate_limits>
+    <endpoint type="ai_generation">
+      <free>20 requests per hour</free>
+      <pro>100 requests per hour</pro>
+    </endpoint>
+    <endpoint type="general_api">
+      <free>100 requests per 15 minutes</free>
+      <pro>500 requests per 15 minutes</pro>
+    </endpoint>
+    <endpoint type="auth">
+      <all>5 requests per minute</all>
+    </endpoint>
+  </rate_limits>
+
+  <security_requirements>
+    - Passwords hashed with bcrypt (cost factor 12)
+    - JWT tokens with secure signing (HS256 or RS256)
+    - Refresh tokens stored in httpOnly cookies
+    - Failed login attempts rate limited (5/minute)
+    - All API endpoints authenticated except public routes
+    - Row-level data isolation (users only access own data)
+    - All transmission over HTTPS (production)
+    - Gemini API key never exposed to frontend
+    - Stripe webhook signature verification
+    - CORS configured for allowed origins only
+    - SQL injection prevention via Prisma parameterized queries
+    - XSS prevention via React's default escaping
+  </security_requirements>
+
+  <performance_requirements>
+    - Page load: less than 2 seconds
+    - API response: less than 500ms for standard requests
+    - AI generation: less than 10 seconds
+    - Animation frame rate: 60fps
+    - Uptime target: 99.5%
+    - Lighthouse performance score: greater than 90
+  </performance_requirements>
+
+  <new_features>
+    <infrastructure>
+      <authentication>
+        - Email/password signup with validation
+        - Email verification flow
+        - Login with email/password
+        - Google OAuth integration
+        - Password reset flow (email link)
+        - Secure session management (JWT + refresh tokens)
+        - Logout (invalidate refresh token)
+        - Protected route middleware
+        - User profile management
+        - Account deletion with data cleanup
+      </authentication>
+      <database_and_persistence>
+        - PostgreSQL schema design
+        - Prisma migrations
+        - Data migration from localStorage (existing users)
+        - Automated backups configuration
+        - Connection pooling
+      </database_and_persistence>
+      <payments>
+        - Stripe Checkout integration
+        - Subscription creation (monthly/yearly)
+        - Webhook handling (subscription events)
+        - Customer portal redirect
+        - Tier enforcement middleware
+        - Usage tracking (sessions, questions per month)
+        - Usage reset on billing cycle
+        - Upgrade/downgrade flows
+        - Cancellation handling
+        - Grace period for failed payments
+      </payments>
+      <api_proxy>
+        - Gemini API proxy endpoint
+        - Request/response transformation
+        - Error handling and retries
+        - Rate limiting per user/tier
+        - Usage logging for cost tracking
+        - Request queuing for high load
+      </api_proxy>
+    </infrastructure>
+
+    <F01_personalised_onboarding>
+      <description>Interactive setup flow that captures preferences and leads directly into first session</description>
+      <tier>All users</tier>
+      <priority>P0 - Launch Required</priority>
+      <captures>
+        - Learning purpose (career, skills, exam prep, curiosity)
+        - Learning style (quick overview, thorough, challenging)
+        - Tutor personality (Professor, Coach, Direct, Creative)
+        - Language variant (British, American, Australian)
+        - Daily commitment level (5/15/30/45+ minutes)
+        - Preferred learning time
+        - Preferred learning days
+      </captures>
+      <flow>
+        1. Complete signup -> Welcome screen with user's name
+        2. Screen 1: Learning purpose selection
+        3. Screen 2: Learning style selection
+        4. Screen 3: Tutor personality with previews
+        5. Screen 4: Language variant
+        6. Screen 5: Daily commitment, time, days
+        7. Summary screen with option to adjust
+        8. Paste YouTube URL prompt
+        9. First question appears -> Onboarding complete
+      </flow>
+      <requirements>
+        - Each screen has ONE clear question
+        - Progress indicator visible throughout
+        - Back button allows changes
+        - Mobile experience equally smooth
+        - Personality preview shows actual communication style examples
+        - If user abandons and returns, continue where they left off
+        - Total time to complete: less than 90 seconds
+        - Smooth transitions between screens (Framer Motion)
+      </requirements>
+      <success_criteria>
+        - Onboarding completion rate: greater than 85%
+        - Time to complete: less than 90 seconds
+        - First session start rate: greater than 80%
+        - First session completion: greater than 70%
+        - Time to first value: less than 3 minutes
+      </success_criteria>
+    </F01_personalised_onboarding>
+
+    <F04_daily_commitment>
+      <description>Users set personal daily commitment with professional habit tracking (NOT gamified streaks)</description>
+      <tier>All users</tier>
+      <priority>P0 - Launch Required</priority>
+      <commitment_levels>
+        - Light: approximately 5 minutes
+        - Regular: approximately 15 minutes
+        - Dedicated: approximately 30 minutes
+        - Intensive: approximately 45+ minutes
+      </commitment_levels>
+      <features>
+        - Commitment level setting
+        - Preferred time setting
+        - Learning days selection (weekdays, weekends, specific days)
+        - Reminder preferences (push, email, none)
+        - "Today's commitment" status display
+        - Calendar view (week and month)
+        - Consistency percentage ("18 of 21 days - 86%")
+        - "Busy week" mode (temporarily reduce commitment)
+        - Vacation mode (pause tracking without penalty)
+        - Instant adjustment without acknowledgment or penalty
+        - Timezone-aware "today" reset
+      </features>
+      <what_counts_as_met>
+        - Time spent in active learning sessions
+        - Questions answered count
+        - Combination approach: whichever threshold met first
+      </what_counts_as_met>
+      <language_rules>
+        - NEVER use: "streak", "broke", "lost", "failed"
+        - Missed days shown in neutral colour (grey, not red)
+        - Celebrate consistency without punishing inconsistency
+        - Professional, supportive tone always
+      </language_rules>
+      <success_criteria>
+        - Commitment set rate: greater than 80%
+        - Daily achievement rate: greater than 50%
+        - Weekly consistency (4+ days): greater than 60%
+        - 30-day retention: greater than 40%
+      </success_criteria>
+    </F04_daily_commitment>
+
+    <F05_progress_dashboard>
+      <description>Professional dashboard showing learning journey through meaningful metrics</description>
+      <tier>All users (basic), Pro (full insights and export)</tier>
+      <priority>P0 - Launch Required</priority>
+      <summary_metrics>
+        - Total sessions completed
+        - Total time invested
+        - Topics covered
+        - Questions answered
+        - Overall accuracy percentage
+      </summary_metrics>
+      <progress_over_time>
+        - Weekly activity chart
+        - Monthly activity chart
+        - Trend indicators (up/down/stable)
+        - Period comparisons (this week vs last week)
+      </progress_over_time>
+      <topic_breakdown>
+        - Performance by topic area
+        - Strengths identification
+        - Improvement areas
+        - Topic mastery levels
+      </topic_breakdown>
+      <insights_pro_only>
+        - Behavioural patterns ("You learn best in evenings")
+        - Optimal session duration
+        - Difficulty sweet spot
+        - Personalised recommendations
+      </insights_pro_only>
+      <export_pro_only>
+        - PDF export (professionally formatted)
+        - Markdown export
+        - Date range selection
+      </export_pro_only>
+      <requirements>
+        - Empty states must not look broken (clear CTA to start first session)
+        - Charts must be mobile-friendly
+        - Performance optimized for many sessions (caching)
+        - Default time period: 7 days with toggle to 30 days
+        - Accessible chart alternatives
+      </requirements>
+      <success_criteria>
+        - Dashboard view rate (weekly): greater than 50%
+        - Time on dashboard: greater than 30 seconds
+        - Insight engagement: greater than 30%
+        - Export rate (Pro): greater than 10%
+        - Sessions started from dashboard: greater than 20%
+      </success_criteria>
+    </F05_progress_dashboard>
+
+    <F12_session_summary>
+      <description>Professional summary after each session with performance, takeaways, and next steps</description>
+      <tier>All users (basic), Pro (export)</tier>
+      <priority>P0 - Launch Required</priority>
+      <includes>
+        - Performance: questions correct/total, accuracy percentage, time spent
+        - Topics covered with individual breakdown
+        - Key takeaways: AI-generated 3-5 bullet points (substantive, not generic)
+        - Strengths identified in this session
+        - Areas for development
+        - Recommended next steps (specific, actionable)
+        - Source snippets used (links to original sources)
+      </includes>
+      <export_pro_only>
+        - PDF export (professional formatting)
+        - Markdown export
+        - Include all Q&A exchanges
+      </export_pro_only>
+      <weekly_summary_email>
+        - Sent once per week to active users
+        - Sessions completed, time invested, topics covered
+        - Progress highlights
+        - Recommended next sessions
+      </weekly_summary_email>
+      <flow>
+        1. Answer final question
+        2. Completion animation (satisfying, not over-the-top)
+        3. Summary appears automatically
+        4. User reviews performance, sees takeaways
+        5. User acts on recommendation OR starts another session OR exports
+      </flow>
+      <requirements>
+        - AI-generated takeaways must feel valuable, not generic filler
+        - Frame low scores constructively without discouraging
+        - If user closes before summary, accessible from library later
+        - Mobile-optimized layout
+      </requirements>
+      <success_criteria>
+        - Summary view rate: greater than 90%
+        - Summary scroll rate (read full summary): greater than 60%
+        - Recommendation action rate: greater than 30%
+        - Export rate (Pro): greater than 15%
+        - Weekly email open rate: greater than 50%
+      </success_criteria>
+    </F12_session_summary>
+
+    <F14_micro_interactions>
+      <description>Polished animations throughout providing feedback, guiding attention, creating premium feel</description>
+      <tier>All users</tier>
+      <priority>P0 - Launch Required</priority>
+      <categories>
+        <feedback>
+          - Button press: subtle scale + shadow change
+          - Correct answer: satisfying confirmation (not confetti/fireworks)
+          - Incorrect answer: gentle indication (not alarming)
+          - Loading states: skeleton screens or subtle spinners
+          - Form submission: progress indication
+        </feedback>
+        <transitions>
+          - Page changes: smooth fade/slide
+          - Element enter: stagger when appropriate
+          - Element exit: fade out
+          - Modal open/close: scale + fade
+          - Drawer slide
+        </transitions>
+        <progress>
+          - Progress bar fills: smooth animation
+          - Number counters: animated counting
+          - Completion states: satisfying checkmark
+          - Mastery level changes: visual celebration (subtle)
+        </progress>
+        <interactive>
+          - Hover states: lift effect on cards
+          - Focus indicators: clear accessibility ring
+          - Drag interactions: smooth follow
+          - Scroll-triggered animations (subtle)
+        </interactive>
+        <attention>
+          - New elements: fade in with slight delay
+          - Notifications: slide in from edge
+          - Tooltips: fade with slight scale
+          - Error states: shake or highlight
+        </attention>
+      </categories>
+      <timing_guidelines>
+        - Short (micro): 0.15-0.2s (button feedback, hovers)
+        - Medium: 0.3-0.4s (element transitions)
+        - Page transitions: 0.4-0.5s
+        - Maximum any animation: 1s
+      </timing_guidelines>
+      <easing_guidelines>
+        - Use natural deceleration (ease-out for enters)
+        - Use acceleration (ease-in for exits)
+        - NEVER use linear easing
+        - NEVER use bouncy/elastic (unprofessional)
+      </easing_guidelines>
+      <performance_requirements>
+        - GPU-accelerated properties only (transform, opacity)
+        - Test on slower devices
+        - No animation if prefers-reduced-motion is set
+        - Maintain 60fps
+      </performance_requirements>
+      <implementation>
+        - Use Framer Motion for React animations
+        - Create reusable animation variants
+        - Consistent timing/easing across component library
+        - Document animation patterns for consistency
+      </implementation>
+      <success_criteria>
+        - Lighthouse performance: greater than 90
+        - Animation frame rate: 60fps
+        - Reduced motion support: 100%
+        - User perception: "Polished/Professional"
+      </success_criteria>
+    </F14_micro_interactions>
+
+    <F15_source_attribution>
+      <description>Show exactly where information comes from when AI generates questions</description>
+      <tier>All users</tier>
+      <priority>P0 - Launch Required</priority>
+      <source_types>
+        - Video Transcript (always primary)
+        - Documentation (official docs)
+        - Repository (GitHub READMEs, code)
+        - Article (blog posts, tutorials)
+        - Academic (papers, research)
+      </source_types>
+      <display>
+        <during_session>
+          - Collapsible panel: "Sources: React Docs, Kent C. Dodds Blog"
+          - Tap to expand full details
+          - Each source shows: type badge, title, URL, brief description
+          - Access timestamp
+        </during_session>
+        <in_summary>
+          - Complete source list
+          - Clickable links to originals
+          - Exportable with session notes
+        </in_summary>
+      </display>
+      <requirements>
+        - Track which sources AI actually referenced
+        - Verify sources exist (handle 404s gracefully)
+        - Handle outdated sources with warning
+        - Sources visible but not intrusive to learning flow
+        - Quality indicators (official docs vs random blog)
+      </requirements>
+      <success_criteria>
+        - Source panel view rate: greater than 40%
+        - Source click-through rate: greater than 15%
+        - Trust rating: greater than 4.5/5
+      </success_criteria>
+    </F15_source_attribution>
+
+    <F02_channel_following>
+      <description>Users follow favourite YouTube channels for content discovery and return visits</description>
+      <tier>All users</tier>
+      <priority>P1 - Month 1</priority>
+      <features>
+        - Follow prompt after session completion ("Follow [Channel]?")
+        - Channel search to find and follow
+        - Followed channels list with stats
+        - "Your Feed" with content from followed channels
+        - Unfollow option
+        - Session count per channel
+        - Last session date per channel
+      </features>
+      <channel_data>
+        - Channel ID (from YouTube)
+        - Channel name
+        - Channel thumbnail
+        - Total sessions completed
+        - Last session date
+        - Videos watched list
+      </channel_data>
+      <feed_logic>
+        - Show videos user hasn't done sessions on
+        - Sort by recency or relevance
+        - Start session directly from feed
+        - Performance optimized for many channels
+      </feed_logic>
+      <success_criteria>
+        - Follow acceptance rate: greater than 40%
+        - Channels per user (30-day): greater than 5
+        - Feed engagement: greater than 60%
+        - Sessions started from feed: greater than 20%
+      </success_criteria>
+    </F02_channel_following>
+
+    <F03_intelligent_learning>
+      <description>Builds understanding of each user by observing behaviour to inform personalisation</description>
+      <tier>All users</tier>
+      <priority>P1 - Month 1</priority>
+      <observed_signals>
+        - Time of day patterns (when user is most active)
+        - Session duration preferences (average, preferred length)
+        - Question pacing (time per question)
+        - Difficulty sweet spot (target 70-80% accuracy)
+        - Topic performance (strengths, weaknesses by category)
+        - Device preferences (desktop vs mobile)
+        - Completion patterns (finish rate, abandonment points)
+      </observed_signals>
+      <adaptive_behaviours>
+        - Question difficulty calibration (auto-adjust to sweet spot)
+        - Session length recommendations
+        - Review timing optimization
+        - Notification timing (send when user typically active)
+        - Content suggestions (topics to strengthen)
+      </adaptive_behaviours>
+      <user_visibility>
+        - Settings/Insights shows learned patterns
+        - "Based on your history: You learn best in evenings"
+        - "Your difficulty sweet spot: 75%"
+        - Ability to correct/override any signal
+        - Toggle individual signals on/off
+        - Reset model entirely
+        - Export personal data (GDPR)
+      </user_visibility>
+      <implementation_approach>
+        - Start with heuristics-based model (first 5-10 sessions)
+        - Track rolling averages and patterns
+        - Confidence score increases with more data
+        - Cold-start: use onboarding preferences until enough data
+        - Clear privacy explanation in settings
+      </implementation_approach>
+      <success_criteria>
+        - Model confidence (after 10 sessions): greater than 80%
+        - Difficulty calibration accuracy: within 5% of 70-80% target
+        - Prediction accuracy: greater than 70%
+        - Opt-out rate: less than 5%
+      </success_criteria>
+    </F03_intelligent_learning>
+
+    <F07_tutor_personalities>
+      <description>Users choose AI communication style affecting every AI interaction</description>
+      <tier>Free (Coach only), Pro (all personalities)</tier>
+      <priority>P1 - Month 1</priority>
+      <personalities>
+        <professor>
+          <style>Formal, thorough, academic</style>
+          <example>"It is worth noting that this concept underpins much of modern web development..."</example>
+        </professor>
+        <coach>
+          <style>Encouraging, supportive, warm</style>
+          <example>"Great effort on that one! You've got the core idea, let's build on it..."</example>
+          <note>Default for free tier</note>
+        </coach>
+        <direct>
+          <style>Concise, no-nonsense, efficient</style>
+          <example>"Incorrect. The key difference is X. Moving on."</example>
+        </direct>
+        <creative>
+          <style>Analogies, metaphors, storytelling</style>
+          <example>"Think of it like a library where the books can reorganise themselves..."</example>
+        </creative>
+      </personalities>
+      <application>
+        - Question phrasing
+        - Feedback delivery
+        - Explanations
+        - Dig deeper conversations
+        - Session summaries
+        - All AI-generated content
+      </application>
+      <requirements>
+        - Selection during onboarding with preview examples
+        - Can change anytime in settings
+        - Preview before confirming change
+        - Personality is style, not content limitation
+        - Works with all language variants
+        - Consistent across entire session
+      </requirements>
+      <implementation>
+        - System prompt templates per personality
+        - Personality parameter passed to all AI calls
+        - Validation that responses match personality
+      </implementation>
+      <success_criteria>
+        - Selection rate: greater than 80%
+        - Switch rate: 15-25% (indicates exploration)
+        - Consistency rating: greater than 4/5
+        - Satisfaction by personality: greater than 4.5/5
+      </success_criteria>
+    </F07_tutor_personalities>
+
+    <F11_spaced_repetition>
+      <description>Automatically schedules reviews at optimal intervals before user would forget</description>
+      <tier>Pro only</tier>
+      <priority>P1 - Month 1</priority>
+      <algorithm>
+        - Based on SM-2 (SuperMemo) algorithm
+        - Initial intervals: 1 day, 3 days, 1 week, 2 weeks, 1 month, 2 months
+        - Performance adjusts intervals (correct = longer, incorrect = shorter)
+        - Ease factor per topic (some topics harder than others)
+      </algorithm>
+      <mastery_levels>
+        - Introduced: First exposure, needs immediate review
+        - Developing: Seen 2-3 times, short intervals
+        - Familiar: Consistent correct answers, medium intervals
+        - Mastered: Long intervals (1+ months), stable knowledge
+      </mastery_levels>
+      <flow>
+        1. Complete session -> Topics added to review queue
+        2. System calculates forgetting points per topic
+        3. Notification when reviews due ("3 topics ready for review")
+        4. Quick review session (5-10 questions, less than 5 min)
+        5. Performance determines next interval
+        6. "Retention improved: 72% -> 85%, next review in 1 week"
+      </flow>
+      <user_controls>
+        - Maximum daily reviews setting
+        - Preferred review times
+        - Vacation mode (pause without losing progress)
+        - Topic priority settings (some topics more important)
+        - Skip review option (reschedules)
+      </user_controls>
+      <question_approach>
+        - Regenerate questions each review (prevent memorising answers)
+        - Vary difficulty based on mastery level
+        - Include context from original session
+      </question_approach>
+      <notifications>
+        - Push notification when reviews due
+        - Non-intrusive, professional tone
+        - Respect quiet hours setting
+        - Never more than once per day
+      </notifications>
+      <success_criteria>
+        - Review completion rate: greater than 60%
+        - Retention improvement: greater than 40%
+        - Mastery progression (topics reaching mastered): greater than 25%
+        - Review session length: less than 5 minutes
+      </success_criteria>
+    </F11_spaced_repetition>
+
+    <F16_email_prompts>
+      <description>Periodically emails one question from learned topics - user replies to answer</description>
+      <tier>Pro only</tier>
+      <priority>P1 - Month 1</priority>
+      <email_structure>
+        - Subject: "Quick question: [Topic Name]"
+        - One question only
+        - Topic context reminder
+        - Reply instruction: "Just reply with your answer"
+        - Skip option: "Reply 'skip' to skip this one"
+        - Unsubscribe link
+      </email_structure>
+      <frequency>
+        - Default: 2-3 times per week
+        - User configurable (1-5 per week)
+        - Never daily (too aggressive)
+        - Respects user's preferred learning days
+      </frequency>
+      <reply_handling>
+        1. User replies with answer
+        2. Inbound webhook receives email
+        3. Parse reply content (handle email client variations)
+        4. Match to user by email address
+        5. AI evaluates answer
+        6. Feedback email sent within 30 seconds
+        7. Logged to user's account
+        8. Counts toward daily commitment
+      </reply_handling>
+      <edge_cases>
+        - Reply from unknown email: ignore or request signup
+        - Empty reply: ask for answer
+        - Very long reply: truncate for evaluation
+        - Out of office replies: detect and ignore
+        - Email bounce: disable after 3 bounces
+      </edge_cases>
+      <email_deliverability>
+        - SPF, DKIM, DMARC configured
+        - Proper from address
+        - Unsubscribe handling
+        - Complaint handling
+      </email_deliverability>
+      <success_criteria>
+        - Email open rate: greater than 40%
+        - Reply rate: greater than 20%
+        - Accuracy on email questions: greater than 60%
+        - Retention impact: greater than 15%
+        - Unsubscribe rate: less than 2%
+      </success_criteria>
+    </F16_email_prompts>
+
+    <F08_knowledge_map>
+      <description>Visual representation of everything learned - topics as nodes, connections between related topics</description>
+      <tier>Pro only</tier>
+      <priority>P2 - Month 2</priority>
+      <visualisation>
+        - Topics as nodes
+        - Related topics connected with lines
+        - Node size indicates mastery level
+        - Node brightness/opacity indicates mastery
+        - Category clustering (group related topics)
+      </visualisation>
+      <mastery_display>
+        - Unexplored: Faded, very small, greyed out
+        - Introduced: Small, partial opacity
+        - Developing: Medium size, more visible
+        - Familiar: Larger, clear
+        - Mastered: Full size, bright, prominent
+      </mastery_display>
+      <interactions>
+        - Zoom in/out (pinch on mobile)
+        - Pan/drag to navigate
+        - Tap node for details panel
+        - Start review from node
+        - Filter by category
+        - Search for topic
+      </interactions>
+      <performance>
+        - Efficient rendering for 100+ nodes
+        - Smooth animations
+        - Progressive loading for large maps
+      </performance>
+      <sharing>
+        - Generate shareable image
+        - Social sharing buttons
+        - Public profile option (optional)
+      </sharing>
+      <success_criteria>
+        - Map view rate (weekly): greater than 40%
+        - Time on map: greater than 45 seconds
+        - Map-driven sessions: greater than 15%
+        - Social shares: greater than 5%
+      </success_criteria>
+    </F08_knowledge_map>
+
+    <F09_code_editor>
+      <description>Integrated code editor for programming content - write, run, experiment while learning</description>
+      <tier>Pro only</tier>
+      <priority>P2 - Month 2</priority>
+      <supported_languages>
+        - JavaScript (browser runtime)
+        - Python (WebAssembly via Pyodide)
+        - HTML/CSS (live preview)
+      </supported_languages>
+      <features>
+        - Syntax highlighting
+        - Auto language detection from content
+        - Run code in browser
+        - Console output display
+        - Error display with line numbers
+        - Save snippets to session
+        - Reset to original code
+        - Copy to clipboard
+        - Full-screen mode
+      </features>
+      <integration>
+        - Auto-detect coding content in video
+        - "Try it yourself" prompts during session
+        - Code-based questions evaluated by running code
+        - Saved snippets accessible from session notes
+      </integration>
+      <layout>
+        - Split view: editor + output
+        - Collapsible when not in use
+        - Mobile: tabbed view (code/output)
+      </layout>
+      <success_criteria>
+        - Editor activation (on coding content): greater than 60%
+        - Code execution rate: greater than 70%
+        - Retention improvement (coding topics): greater than 25%
+      </success_criteria>
+    </F09_code_editor>
+
+    <F10_timed_sessions>
+      <description>Optional timed sessions for testing under pressure - professional skill-building</description>
+      <tier>Pro only</tier>
+      <priority>P2 - Month 2</priority>
+      <session_types>
+        <rapid_review>
+          <questions>10</questions>
+          <time>30 seconds per question</time>
+          <purpose>Quick recall check</purpose>
+        </rapid_review>
+        <focused_practice>
+          <questions>15-20</questions>
+          <time>15 minutes total</time>
+          <purpose>Single topic deep dive</purpose>
+        </focused_practice>
+        <comprehensive>
+          <questions>30</questions>
+          <time>30 minutes total</time>
+          <purpose>All topics review, exam simulation</purpose>
+        </comprehensive>
+      </session_types>
+      <features>
+        - Clean timer display (not anxiety-inducing)
+        - Progress indicator
+        - Skip question (return later if time permits)
+        - Comparison to previous attempts
+        - Score breakdown by topic
+      </features>
+      <design_notes>
+        - Professional appearance, not gamified
+        - Time warnings at 50% and 10% remaining
+        - Option to abandon without penalty
+        - History of timed sessions
+      </design_notes>
+      <success_criteria>
+        - Participation rate: greater than 25%
+        - Completion rate: greater than 80%
+        - Improvement rate (score increase over time): greater than 60%
+      </success_criteria>
+    </F10_timed_sessions>
+
+    <F13_learning_goals>
+      <description>Users set personalised goals with targets and deadlines</description>
+      <tier>Pro only</tier>
+      <priority>P2 - Month 2</priority>
+      <goal_types>
+        <time_based>
+          <examples>
+            - "30 minutes daily"
+            - "10 hours this month"
+            - "2 hours per week"
+          </examples>
+        </time_based>
+        <topic_based>
+          <examples>
+            - "Complete 10 sessions on Data Science"
+            - "Achieve 80% accuracy in Marketing"
+            - "Cover 5 JavaScript topics"
+          </examples>
+        </topic_based>
+        <outcome_based>
+          <examples>
+            - "Prepare for AWS certification by March"
+            - "Learn React fundamentals in 2 weeks"
+            - "Master Python basics this month"
+          </examples>
+        </outcome_based>
+      </goal_types>
+      <features>
+        - Goal creation wizard
+        - Progress visualisation
+        - Milestone tracking (25%, 50%, 75%, 100%)
+        - Milestone acknowledgments (subtle, professional)
+        - Deadline reminders
+        - Goal suggestions based on activity
+        - Edit goal (adjust target, deadline)
+        - Archive completed goals
+        - Delete goal
+      </features>
+      <display>
+        - Active goals on dashboard
+        - Progress bars
+        - Days remaining
+        - Predicted completion date
+      </display>
+      <success_criteria>
+        - Goal set rate: greater than 40%
+        - Goal completion rate: greater than 50%
+        - Retention impact: greater than 25%
+      </success_criteria>
+    </F13_learning_goals>
+  </new_features>
+
+  <database_changes>
+    <new_tables>
+      <users>
+        - id: UUID primary key
+        - email: string unique
+        - password_hash: string nullable (null for OAuth users)
+        - display_name: string
+        - avatar_url: string nullable
+        - email_verified: boolean default false
+        - email_verification_token: string nullable
+        - password_reset_token: string nullable
+        - password_reset_expires: timestamp nullable
+        - google_id: string nullable unique
+        - created_at: timestamp
+        - updated_at: timestamp
+        - last_active_at: timestamp
+      </users>
+
+      <user_preferences>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - learning_purpose: enum (career, skills, exam, curiosity)
+        - learning_style: enum (quick, thorough, challenging)
+        - tutor_personality: enum (professor, coach, direct, creative)
+        - language_variant: enum (british, american, australian)
+        - daily_commitment_minutes: integer (5, 15, 30, 45)
+        - preferred_time: time nullable
+        - preferred_days: string[] (array of day names)
+        - email_prompts_enabled: boolean default true
+        - email_prompts_frequency: integer default 3
+        - push_notifications_enabled: boolean default true
+        - timezone: string
+        - created_at: timestamp
+        - updated_at: timestamp
+      </user_preferences>
+
+      <subscriptions>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - tier: enum (free, pro)
+        - status: enum (active, cancelled, past_due, trialing)
+        - stripe_customer_id: string nullable
+        - stripe_subscription_id: string nullable
+        - current_period_start: timestamp nullable
+        - current_period_end: timestamp nullable
+        - cancel_at_period_end: boolean default false
+        - created_at: timestamp
+        - updated_at: timestamp
+      </subscriptions>
+
+      <usage_tracking>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - period_start: date
+        - period_end: date
+        - sessions_count: integer default 0
+        - questions_count: integer default 0
+        - ai_requests_count: integer default 0
+        - created_at: timestamp
+        - updated_at: timestamp
+      </usage_tracking>
+
+      <refresh_tokens>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - token_hash: string
+        - expires_at: timestamp
+        - created_at: timestamp
+        - revoked_at: timestamp nullable
+      </refresh_tokens>
+
+      <sessions>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - video_id: string (YouTube video ID)
+        - video_title: string
+        - video_url: string
+        - video_thumbnail: string
+        - video_duration: integer (seconds)
+        - channel_id: string
+        - channel_name: string
+        - transcript: text
+        - status: enum (setup, active, completed, abandoned)
+        - started_at: timestamp nullable
+        - completed_at: timestamp nullable
+        - time_spent_seconds: integer default 0
+        - questions_generated: integer default 0
+        - questions_answered: integer default 0
+        - questions_correct: integer default 0
+        - created_at: timestamp
+        - updated_at: timestamp
+      </sessions>
+
+      <session_sources>
+        - id: UUID primary key
+        - session_id: UUID foreign key sessions
+        - source_type: enum (transcript, documentation, repository, article, academic)
+        - title: string
+        - url: string
+        - description: text nullable
+        - snippet: text nullable
+        - accessed_at: timestamp
+        - created_at: timestamp
+      </session_sources>
+
+      <topics>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - session_id: UUID foreign key sessions
+        - name: string
+        - description: text nullable
+        - category: string nullable
+        - mastery_level: enum (introduced, developing, familiar, mastered) default introduced
+        - ease_factor: float default 2.5 (SM-2 algorithm)
+        - review_interval_days: integer default 1
+        - next_review_date: date nullable
+        - review_count: integer default 0
+        - last_reviewed_at: timestamp nullable
+        - created_at: timestamp
+        - updated_at: timestamp
+      </topics>
+
+      <questions>
+        - id: UUID primary key
+        - topic_id: UUID foreign key topics
+        - session_id: UUID foreign key sessions
+        - question_text: text
+        - correct_answer: text nullable
+        - user_answer: text nullable
+        - is_correct: boolean nullable
+        - feedback: text nullable
+        - difficulty: enum (easy, medium, hard)
+        - time_taken_seconds: integer nullable
+        - answered_at: timestamp nullable
+        - created_at: timestamp
+      </questions>
+
+      <followed_channels>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - channel_id: string
+        - channel_name: string
+        - channel_thumbnail: string nullable
+        - sessions_completed: integer default 0
+        - last_session_at: timestamp nullable
+        - followed_at: timestamp
+      </followed_channels>
+
+      <learning_model>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - optimal_time: time nullable
+        - avg_session_duration: integer nullable (minutes)
+        - difficulty_sweet_spot: float nullable (0.0-1.0)
+        - preferred_pacing: enum (fast, medium, slow) nullable
+        - preferred_device: enum (desktop, mobile, tablet) nullable
+        - sessions_analyzed: integer default 0
+        - confidence_score: float default 0.0
+        - last_updated: timestamp
+        - created_at: timestamp
+      </learning_model>
+
+      <learning_model_patterns>
+        - id: UUID primary key
+        - learning_model_id: UUID foreign key learning_model
+        - pattern_type: string (time_of_day, day_of_week, topic_performance, etc)
+        - pattern_data: jsonb
+        - created_at: timestamp
+        - updated_at: timestamp
+      </learning_model_patterns>
+
+      <daily_records>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - date: date
+        - commitment_met: boolean default false
+        - questions_answered: integer default 0
+        - time_spent_minutes: integer default 0
+        - sessions_completed: integer default 0
+        - created_at: timestamp
+        - updated_at: timestamp
+        - unique constraint: user_id + date
+      </daily_records>
+
+      <goals>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - title: string
+        - goal_type: enum (time, topic, outcome)
+        - target_value: integer nullable
+        - current_value: integer default 0
+        - target_unit: string nullable (minutes, sessions, accuracy)
+        - deadline: date nullable
+        - status: enum (active, completed, abandoned) default active
+        - completed_at: timestamp nullable
+        - created_at: timestamp
+        - updated_at: timestamp
+      </goals>
+
+      <goal_milestones>
+        - id: UUID primary key
+        - goal_id: UUID foreign key goals
+        - milestone_percentage: integer (25, 50, 75, 100)
+        - reached_at: timestamp nullable
+        - created_at: timestamp
+      </goal_milestones>
+
+      <email_prompts>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - topic_id: UUID foreign key topics
+        - question_text: text
+        - correct_answer: text
+        - sent_at: timestamp
+        - opened_at: timestamp nullable
+        - replied_at: timestamp nullable
+        - user_response: text nullable
+        - is_correct: boolean nullable
+        - feedback_sent_at: timestamp nullable
+        - created_at: timestamp
+      </email_prompts>
+
+      <code_snippets>
+        - id: UUID primary key
+        - session_id: UUID foreign key sessions
+        - user_id: UUID foreign key users
+        - language: enum (javascript, python, html, css)
+        - code: text
+        - output: text nullable
+        - created_at: timestamp
+        - updated_at: timestamp
+      </code_snippets>
+
+      <timed_sessions>
+        - id: UUID primary key
+        - user_id: UUID foreign key users
+        - session_type: enum (rapid, focused, comprehensive)
+        - topic_filter: string nullable
+        - questions_total: integer
+        - questions_answered: integer default 0
+        - questions_correct: integer default 0
+        - time_limit_seconds: integer
+        - time_used_seconds: integer default 0
+        - status: enum (active, completed, abandoned) default active
+        - started_at: timestamp
+        - completed_at: timestamp nullable
+        - created_at: timestamp
+      </timed_sessions>
+    </new_tables>
+
+    <modified_from_phase1>
+      <note>Phase 1 used localStorage. All existing session data must be migrated to database for returning users.</note>
+      <migration_approach>
+        1. Detect existing localStorage data on first login
+        2. Prompt user to migrate data to cloud
+        3. Parse localStorage sessions into new schema
+        4. Create database records
+        5. Clear localStorage after successful migration
+        6. Handle edge cases (partial data, corrupted data)
+      </migration_approach>
+    </modified_from_phase1>
+  </database_changes>
+
+  <new_api_endpoints>
+    <auth>
+      - POST /api/auth/signup (email, password, displayName)
+      - POST /api/auth/login (email, password)
+      - POST /api/auth/logout
+      - POST /api/auth/refresh (refresh token)
+      - POST /api/auth/forgot-password (email)
+      - POST /api/auth/reset-password (token, newPassword)
+      - GET /api/auth/verify-email/:token
+      - POST /api/auth/google (OAuth code exchange)
+      - GET /api/auth/me (get current user)
+    </auth>
+
+    <users>
+      - GET /api/users/profile
+      - PATCH /api/users/profile (update profile)
+      - DELETE /api/users/account
+      - GET /api/users/preferences
+      - PUT /api/users/preferences
+      - POST /api/users/migrate-local-data (migrate localStorage)
+    </users>
+
+    <subscriptions>
+      - GET /api/subscriptions/status
+      - POST /api/subscriptions/checkout (create Stripe checkout)
+      - POST /api/subscriptions/portal (create portal session)
+      - POST /api/webhooks/stripe (Stripe webhook handler)
+    </subscriptions>
+
+    <sessions>
+      - GET /api/sessions (list user's sessions, paginated)
+      - GET /api/sessions/:id
+      - POST /api/sessions (create new session from YouTube URL)
+      - PATCH /api/sessions/:id (update session status, progress)
+      - DELETE /api/sessions/:id
+      - GET /api/sessions/:id/sources
+      - GET /api/sessions/:id/summary (generate/get AI summary)
+    </sessions>
+
+    <topics>
+      - GET /api/topics (list user's topics, with filters)
+      - GET /api/topics/:id
+      - PATCH /api/topics/:id (update mastery, schedule)
+      - GET /api/topics/due-for-review (spaced repetition)
+      - POST /api/topics/:id/review (log review, update SM-2)
+    </topics>
+
+    <questions>
+      - GET /api/sessions/:id/questions
+      - POST /api/questions/:id/answer (submit answer, get AI evaluation)
+    </questions>
+
+    <ai_proxy>
+      - POST /api/ai/generate-questions (from transcript)
+      - POST /api/ai/evaluate-answer
+      - POST /api/ai/generate-summary
+      - POST /api/ai/dig-deeper (follow-up questions/chat)
+    </ai_proxy>
+
+    <channels>
+      - GET /api/channels (list followed channels)
+      - POST /api/channels/:channelId/follow
+      - DELETE /api/channels/:channelId/unfollow
+      - GET /api/channels/feed (videos from followed channels)
+    </channels>
+
+    <progress>
+      - GET /api/progress/dashboard (summary metrics)
+      - GET /api/progress/daily (daily records)
+      - GET /api/progress/weekly-chart
+      - GET /api/progress/monthly-chart
+      - GET /api/progress/insights (learning model insights, Pro)
+      - GET /api/progress/export (PDF or markdown, Pro)
+    </progress>
+
+    <commitment>
+      - GET /api/commitment/today
+      - GET /api/commitment/calendar (week or month view)
+      - POST /api/commitment/log (log activity toward commitment)
+      - PATCH /api/commitment/settings (busy week, vacation mode)
+    </commitment>
+
+    <goals>
+      - GET /api/goals (list user's goals)
+      - POST /api/goals (create goal)
+      - PATCH /api/goals/:id
+      - DELETE /api/goals/:id
+      - GET /api/goals/:id/milestones
+    </goals>
+
+    <email_prompts>
+      - GET /api/email-prompts/settings
+      - PUT /api/email-prompts/settings
+      - POST /api/webhooks/email-inbound (Resend inbound webhook)
+    </email_prompts>
+
+    <code_editor>
+      - POST /api/code/run (execute code, return output)
+      - POST /api/code/snippets (save snippet)
+      - GET /api/sessions/:id/snippets
+    </code_editor>
+
+    <timed_sessions>
+      - POST /api/timed-sessions (create timed session)
+      - GET /api/timed-sessions/:id
+      - PATCH /api/timed-sessions/:id (update progress)
+      - GET /api/timed-sessions/history
+    </timed_sessions>
+
+    <learning_model>
+      - GET /api/learning-model
+      - DELETE /api/learning-model (reset)
+      - PATCH /api/learning-model/signals (toggle signals)
+      - GET /api/learning-model/export (GDPR data export)
+    </learning_model>
+
+    <knowledge_map>
+      - GET /api/knowledge-map (topics with connections)
+      - GET /api/knowledge-map/export-image
+    </knowledge_map>
+  </new_api_endpoints>
+
+  <ui_additions>
+    <new_screens>
+      <onboarding_flow>
+        - Welcome screen
+        - Learning purpose screen
+        - Learning style screen
+        - Tutor personality screen (with previews)
+        - Language variant screen
+        - Commitment settings screen
+        - Summary/confirmation screen
+        - First session prompt screen
+      </onboarding_flow>
+
+      <auth_screens>
+        - Login page
+        - Signup page
+        - Forgot password page
+        - Reset password page
+        - Email verification page
+        - Google OAuth callback page
+      </auth_screens>
+
+      <dashboard>
+        - Progress dashboard (replaces simple home)
+        - Summary metrics cards
+        - Weekly/monthly charts
+        - Topic breakdown section
+        - Insights section (Pro)
+        - Recent sessions
+        - Quick actions (start session, review)
+      </dashboard>
+
+      <subscription>
+        - Upgrade prompt (in-app)
+        - Pricing comparison page
+        - Checkout success page
+        - Manage subscription page
+      </subscription>
+
+      <session_summary>
+        - Performance overview
+        - Topics covered breakdown
+        - Key takeaways section
+        - Recommendations section
+        - Export options (Pro)
+        - Next actions
+      </session_summary>
+
+      <channels>
+        - Followed channels list
+        - Channel search
+        - Your Feed (videos from followed channels)
+        - Channel detail view
+      </channels>
+
+      <review>
+        - Due for review list
+        - Quick review session
+        - Review results
+        - Topic mastery view
+      </review>
+
+      <goals>
+        - Goals list view
+        - Create goal wizard
+        - Goal detail/progress view
+        - Completed goals archive
+      </goals>
+
+      <knowledge_map>
+        - Interactive map view
+        - Topic detail panel
+        - Filter/search controls
+        - Export/share controls
+      </knowledge_map>
+
+      <timed_session>
+        - Timed session setup
+        - Active timed session (with timer)
+        - Timed session results
+        - Timed session history
+      </timed_session>
+
+      <settings>
+        - Profile settings
+        - Preferences settings
+        - Commitment settings
+        - Notification settings
+        - Learning model visibility/controls
+        - Privacy/data controls
+        - Subscription management
+      </settings>
+    </new_screens>
+
+    <modified_screens>
+      <home>
+        - Now shows dashboard for authenticated users
+        - Login/signup prompt for anonymous users
+        - Remove API key input (moved to backend)
+      </home>
+
+      <active_session>
+        - Add source attribution panel
+        - Add code editor (when applicable)
+        - Enhanced animations (Framer Motion)
+        - Personality-aware AI responses
+      </active_session>
+
+      <library>
+        - Connect to cloud data
+        - Add channel filter
+        - Add export options (Pro)
+        - Performance optimizations
+      </library>
+
+      <session_notes>
+        - Add source attribution section
+        - Add code snippets section
+        - Add export options (Pro)
+      </session_notes>
+    </modified_screens>
+
+    <new_components>
+      - AuthGuard (protected route wrapper)
+      - SubscriptionGuard (Pro feature wrapper)
+      - TierBadge (Free/Pro indicator)
+      - UpgradePrompt (contextual upsell)
+      - CommitmentWidget (today's status)
+      - ProgressChart (reusable chart component)
+      - TopicCard (with mastery indicator)
+      - ChannelCard (with session count)
+      - GoalCard (with progress bar)
+      - SourcePanel (collapsible attribution)
+      - CodeEditor (Monaco or similar)
+      - Timer (for timed sessions)
+      - KnowledgeMapCanvas (interactive visualization)
+      - OnboardingStep (consistent step layout)
+      - PersonalityPreview (sample responses)
+      - AnimatedNumber (counting animation)
+      - SkeletonLoader (loading states)
+      - EmptyState (consistent empty states)
+    </new_components>
+  </ui_additions>
+
+  <dependencies>
+    <requires_from_phase1>
+      - React application structure
+      - YouTube transcript extraction
+      - Basic session flow (Q&A)
+      - Dig deeper chat functionality
+      - Library view
+      - Session notes view
+      - Neobrutalism design system
+      - localStorage data structure (for migration)
+    </requires_from_phase1>
+  </dependencies>
+
+  <implementation_steps>
+    <step number="0">
+      <title>Foundation - Infrastructure Setup</title>
+      <tasks>
+        - Set up Docker Compose with postgres, redis, mailhog, api services
+        - Initialize Node.js/Express/TypeScript backend project
+        - Configure Prisma ORM with PostgreSQL
+        - Create database schema and initial migrations
+        - Implement JWT authentication (signup, login, logout)
+        - Implement Google OAuth integration
+        - Implement password reset flow
+        - Set up email sending via Mailhog (local) / Resend (prod)
+        - Implement Stripe integration (checkout, webhooks, portal)
+        - Create tier enforcement middleware
+        - Implement Gemini API proxy with rate limiting
+        - Set up Redis for rate limiting
+        - Create usage tracking logic
+        - Implement CORS and security middleware
+        - Create API error handling and logging
+        - Set up CI/CD pipeline configuration
+      </tasks>
+      <done_when>
+        - Can create account, login, logout
+        - Can process Stripe payment and upgrade to Pro
+        - Can generate questions through API proxy
+        - Rate limiting works per tier
+      </done_when>
+    </step>
+
+    <step number="1">
+      <title>P0 Features - Launch MVP</title>
+      <tasks>
+        - F01: Build onboarding flow (5 screens + summary + first session)
+        - F01: Create preferences storage and retrieval
+        - F01: Handle onboarding resume if abandoned
+        - F04: Build commitment settings UI
+        - F04: Implement daily record tracking
+        - F04: Build calendar view (week/month)
+        - F04: Add busy week and vacation modes
+        - F05: Build progress dashboard with metrics
+        - F05: Implement charts (weekly/monthly)
+        - F05: Build topic breakdown view
+        - F05: Add export functionality (Pro)
+        - F12: Build session summary view
+        - F12: Implement AI-generated takeaways
+        - F12: Add recommendations logic
+        - F12: Build weekly summary email
+        - F14: Implement Framer Motion animations throughout
+        - F14: Create animation variants library
+        - F14: Add reduced motion support
+        - F15: Build source attribution panel
+        - F15: Track sources during AI generation
+        - F15: Display sources in session and summary
+        - Implement localStorage migration flow
+        - Connect frontend to new API endpoints
+        - Update session flow to use cloud persistence
+        - Remove user API key functionality from frontend
+      </tasks>
+      <done_when>
+        - New users complete onboarding successfully
+        - Sessions persist across devices
+        - Animations are polished (60fps)
+        - Free/Pro tier enforcement works
+        - Existing users can migrate localStorage data
+      </done_when>
+    </step>
+
+    <step number="2">
+      <title>P1 Features - Retention</title>
+      <tasks>
+        - F02: Build channel following UI
+        - F02: Implement follow prompt after session
+        - F02: Build Your Feed view
+        - F02: Track sessions per channel
+        - F03: Implement learning model data collection
+        - F03: Build pattern detection algorithms
+        - F03: Apply adaptive behaviors
+        - F03: Build model visibility UI in settings
+        - F03: Add model reset and signal toggles
+        - F07: Implement personality prompt templates
+        - F07: Build personality selection UI with previews
+        - F07: Apply personality to all AI interactions
+        - F07: Enforce Coach-only for free tier
+        - F11: Implement SM-2 algorithm
+        - F11: Build review scheduling logic
+        - F11: Create review session flow
+        - F11: Build mastery level progression
+        - F11: Add review notifications
+        - F16: Build email prompt sending system
+        - F16: Implement inbound email parsing
+        - F16: Create AI evaluation for email replies
+        - F16: Build feedback email sending
+        - F16: Add email settings UI
+      </tasks>
+      <done_when>
+        - Channels followable, feed shows content
+        - App adapts to user patterns
+        - Tutor personalities are consistent
+        - Review sessions schedule and work
+        - Email prompts send and process replies
+      </done_when>
+    </step>
+
+    <step number="3">
+      <title>P2 Features - Depth</title>
+      <tasks>
+        - F08: Build knowledge map visualization
+        - F08: Implement node sizing/coloring by mastery
+        - F08: Add zoom/pan interactions
+        - F08: Build topic connections logic
+        - F08: Add export/share functionality
+        - F09: Integrate code editor component
+        - F09: Implement JavaScript execution
+        - F09: Implement Python via Pyodide
+        - F09: Build HTML/CSS preview
+        - F09: Add code snippet saving
+        - F10: Build timed session setup
+        - F10: Implement timer UI
+        - F10: Build timed session flow
+        - F10: Add history and comparison
+        - F13: Build goal creation wizard
+        - F13: Implement goal progress tracking
+        - F13: Build milestone tracking
+        - F13: Add goal reminders
+      </tasks>
+      <done_when>
+        - Knowledge map renders correctly and performs well
+        - Code runs in browser for all supported languages
+        - Timed sessions work with all session types
+        - Goals trackable with milestones
+      </done_when>
+    </step>
+
+    <step number="4">
+      <title>Polish and Launch Prep</title>
+      <tasks>
+        - Comprehensive error handling review
+        - Performance optimization
+        - Mobile responsiveness testing
+        - Accessibility audit and fixes
+        - Security review
+        - Load testing
+        - Documentation
+        - Production deployment configuration
+        - Monitoring and alerting setup
+      </tasks>
+      <done_when>
+        - All quality gates pass
+        - Production environment ready
+        - Monitoring in place
+        - Launch checklist complete
+      </done_when>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <north_star>
+      Weekly Learning Minutes per User: 60 minutes/week
+    </north_star>
+
+    <activation>
+      - Onboarding completion: greater than 85%
+      - Time to first value: less than 3 minutes
+    </activation>
+
+    <engagement>
+      - Sessions per user per week: greater than 3
+      - Commitment achievement rate: greater than 50%
+    </engagement>
+
+    <retention>
+      - Day 7 retention: greater than 40%
+      - Day 30 retention: greater than 30%
+    </retention>
+
+    <revenue>
+      - Free to Pro conversion: greater than 5%
+      - Monthly churn (Pro): less than 5%
+    </revenue>
+
+    <quality>
+      - NPS score: greater than 50
+      - Page load time: less than 2 seconds
+      - Lighthouse performance: greater than 90
+    </quality>
+
+    <phase_complete_when>
+      - All P0 features working in production
+      - All P1 features working in production
+      - All P2 features working in production
+      - Free/Pro tier enforcement working
+      - Payments processing correctly
+      - Email delivery working
+      - Mobile experience polished
+      - Animation performance 60fps
+      - Reduced motion support 100%
+      - All tests passing
+      - No critical bugs
+    </phase_complete_when>
+  </success_criteria>
+
+  <launch_checklist>
+    <technical>
+      - Production database secured and backed up
+      - API deployed with monitoring
+      - Frontend deployed with CDN
+      - SSL certificates active
+      - Error tracking configured (Sentry or similar)
+      - Logging configured
+    </technical>
+    <security>
+      - Authentication working
+      - Rate limiting active
+      - Data isolation tested
+      - Webhooks verified (Stripe, email)
+      - CORS configured
+    </security>
+    <payments>
+      - Products/prices created in Stripe
+      - Webhooks tested with Stripe CLI
+      - Customer portal working
+      - Cancellation flow tested
+    </payments>
+    <quality>
+      - All tests passing
+      - Mobile tested on real devices
+      - Performance tested
+      - Animations respect reduced motion
+      - Accessibility tested
+    </quality>
+    <legal>
+      - Terms of service
+      - Privacy policy
+      - Cookie policy (if required)
+    </legal>
+    <launch>
+      - Smoke tests passed
+      - Team available for support
+      - Rollback plan documented
+      - Monitoring dashboards ready
+    </launch>
+  </launch_checklist>
+</phase_specification>

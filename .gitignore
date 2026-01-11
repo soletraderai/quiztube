@@ -39,3 +39,14 @@ coverage/
 
 # Features database (managed by MCP server)
 features.db
+
+# Docker
+postgres_data/
+
+# API specific
+api/node_modules/
+api/dist/
+api/.env
+
+# Prisma
+api/prisma/migrations/*/migration_lock.toml

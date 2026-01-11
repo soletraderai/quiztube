@@ -1,0 +1,534 @@
+// Teachy Database Schema - Phase 2
+// Prisma ORM with PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User & Authentication
+// ============================================
+
+model User {
+  id                      String    @id @default(uuid())
+  email                   String    @unique
+  passwordHash            String?   @map("password_hash")
+  displayName             String    @map("display_name")
+  avatarUrl               String?   @map("avatar_url")
+  emailVerified           Boolean   @default(false) @map("email_verified")
+  emailVerificationToken  String?   @map("email_verification_token")
+  passwordResetToken      String?   @map("password_reset_token")
+  passwordResetExpires    DateTime? @map("password_reset_expires")
+  googleId                String?   @unique @map("google_id")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  lastActiveAt            DateTime  @default(now()) @map("last_active_at")
+
+  // Relations
+  preferences      UserPreferences?
+  subscription     Subscription?
+  usageTracking    UsageTracking[]
+  refreshTokens    RefreshToken[]
+  sessions         Session[]
+  topics           Topic[]
+  followedChannels FollowedChannel[]
+  learningModel    LearningModel?
+  dailyRecords     DailyRecord[]
+  goals            Goal[]
+  emailPrompts     EmailPrompt[]
+  codeSnippets     CodeSnippet[]
+  timedSessions    TimedSession[]
+
+  @@map("users")
+}
+
+model UserPreferences {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique @map("user_id")
+  learningPurpose         LearningPurpose @default(CURIOSITY) @map("learning_purpose")
+  learningStyle           LearningStyle @default(THOROUGH) @map("learning_style")
+  tutorPersonality        TutorPersonality @default(COACH) @map("tutor_personality")
+  languageVariant         LanguageVariant @default(AMERICAN) @map("language_variant")
+  dailyCommitmentMinutes  Int      @default(15) @map("daily_commitment_minutes")
+  preferredTime           String?  @map("preferred_time")
+  preferredDays           String[] @default([]) @map("preferred_days")
+  emailPromptsEnabled     Boolean  @default(true) @map("email_prompts_enabled")
+  emailPromptsFrequency   Int      @default(3) @map("email_prompts_frequency")
+  pushNotificationsEnabled Boolean @default(true) @map("push_notifications_enabled")
+  timezone                String   @default("America/New_York")
+  quietHoursStart         String?  @map("quiet_hours_start")
+  quietHoursEnd           String?  @map("quiet_hours_end")
+  onboardingCompleted     Boolean  @default(false) @map("onboarding_completed")
+  onboardingStep          Int      @default(0) @map("onboarding_step")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+enum LearningPurpose {
+  CAREER
+  SKILLS
+  EXAM
+  CURIOSITY
+}
+
+enum LearningStyle {
+  QUICK
+  THOROUGH
+  CHALLENGING
+}
+
+enum TutorPersonality {
+  PROFESSOR
+  COACH
+  DIRECT
+  CREATIVE
+}
+
+enum LanguageVariant {
+  BRITISH
+  AMERICAN
+  AUSTRALIAN
+}
+
+// ============================================
+// Subscriptions & Billing
+// ============================================
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String             @unique @map("user_id")
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?            @map("stripe_customer_id")
+  stripeSubscriptionId String?            @map("stripe_subscription_id")
+  currentPeriodStart   DateTime?          @map("current_period_start")
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  TRIALING
+}
+
+model UsageTracking {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  sessionsCount   Int      @default(0) @map("sessions_count")
+  questionsCount  Int      @default(0) @map("questions_count")
+  aiRequestsCount Int      @default(0) @map("ai_requests_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodStart])
+  @@map("usage_tracking")
+}
+
+// ============================================
+// Authentication Tokens
+// ============================================
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// Learning Sessions
+// ============================================
+
+model Session {
+  id                 String        @id @default(uuid())
+  userId             String        @map("user_id")
+  videoId            String        @map("video_id")
+  videoTitle         String        @map("video_title")
+  videoUrl           String        @map("video_url")
+  videoThumbnail     String        @map("video_thumbnail")
+  videoDuration      Int           @map("video_duration")
+  channelId          String        @map("channel_id")
+  channelName        String        @map("channel_name")
+  transcript         String
+  status             SessionStatus @default(SETUP)
+  startedAt          DateTime?     @map("started_at")
+  completedAt        DateTime?     @map("completed_at")
+  timeSpentSeconds   Int           @default(0) @map("time_spent_seconds")
+  questionsGenerated Int           @default(0) @map("questions_generated")
+  questionsAnswered  Int           @default(0) @map("questions_answered")
+  questionsCorrect   Int           @default(0) @map("questions_correct")
+  aiSummary          String?       @map("ai_summary")
+  keyTakeaways       String[]      @default([]) @map("key_takeaways")
+  recommendations    String[]      @default([]) @map("recommendations")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sources      SessionSource[]
+  topics       Topic[]
+  questions    Question[]
+  codeSnippets CodeSnippet[]
+
+  @@map("sessions")
+}
+
+enum SessionStatus {
+  SETUP
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+model SessionSource {
+  id          String     @id @default(uuid())
+  sessionId   String     @map("session_id")
+  sourceType  SourceType @map("source_type")
+  title       String
+  url         String
+  description String?
+  snippet     String?
+  accessedAt  DateTime   @default(now()) @map("accessed_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_sources")
+}
+
+enum SourceType {
+  TRANSCRIPT
+  DOCUMENTATION
+  REPOSITORY
+  ARTICLE
+  ACADEMIC
+}
+
+// ============================================
+// Topics & Spaced Repetition
+// ============================================
+
+model Topic {
+  id                 String       @id @default(uuid())
+  userId             String       @map("user_id")
+  sessionId          String       @map("session_id")
+  name               String
+  description        String?
+  category           String?
+  masteryLevel       MasteryLevel @default(INTRODUCED) @map("mastery_level")
+  easeFactor         Float        @default(2.5) @map("ease_factor")
+  reviewIntervalDays Int          @default(1) @map("review_interval_days")
+  nextReviewDate     DateTime?    @map("next_review_date")
+  reviewCount        Int          @default(0) @map("review_count")
+  lastReviewedAt     DateTime?    @map("last_reviewed_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions    Question[]
+  emailPrompts EmailPrompt[]
+
+  @@map("topics")
+}
+
+enum MasteryLevel {
+  INTRODUCED
+  DEVELOPING
+  FAMILIAR
+  MASTERED
+}
+
+// ============================================
+// Questions
+// ============================================
+
+model Question {
+  id              String           @id @default(uuid())
+  topicId         String           @map("topic_id")
+  sessionId       String           @map("session_id")
+  questionText    String           @map("question_text")
+  correctAnswer   String?          @map("correct_answer")
+  userAnswer      String?          @map("user_answer")
+  isCorrect       Boolean?         @map("is_correct")
+  feedback        String?
+  difficulty      QuestionDifficulty @default(MEDIUM)
+  timeTakenSeconds Int?            @map("time_taken_seconds")
+  answeredAt      DateTime?        @map("answered_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("questions")
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// ============================================
+// Channel Following
+// ============================================
+
+model FollowedChannel {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  channelId         String    @map("channel_id")
+  channelName       String    @map("channel_name")
+  channelThumbnail  String?   @map("channel_thumbnail")
+  sessionsCompleted Int       @default(0) @map("sessions_completed")
+  lastSessionAt     DateTime? @map("last_session_at")
+  followedAt        DateTime  @default(now()) @map("followed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@map("followed_channels")
+}
+
+// ============================================
+// Intelligent Learning Model
+// ============================================
+
+model LearningModel {
+  id                  String    @id @default(uuid())
+  userId              String    @unique @map("user_id")
+  optimalTime         String?   @map("optimal_time")
+  avgSessionDuration  Int?      @map("avg_session_duration")
+  difficultySweetSpot Float?    @map("difficulty_sweet_spot")
+  preferredPacing     Pacing?   @map("preferred_pacing")
+  preferredDevice     Device?   @map("preferred_device")
+  sessionsAnalyzed    Int       @default(0) @map("sessions_analyzed")
+  confidenceScore     Float     @default(0) @map("confidence_score")
+  lastUpdated         DateTime  @default(now()) @map("last_updated")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  // Signal toggles
+  timeOfDayEnabled      Boolean @default(true) @map("time_of_day_enabled")
+  sessionDurationEnabled Boolean @default(true) @map("session_duration_enabled")
+  difficultyEnabled     Boolean @default(true) @map("difficulty_enabled")
+  pacingEnabled         Boolean @default(true) @map("pacing_enabled")
+  deviceEnabled         Boolean @default(true) @map("device_enabled")
+
+  user     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  patterns LearningModelPattern[]
+
+  @@map("learning_models")
+}
+
+enum Pacing {
+  FAST
+  MEDIUM
+  SLOW
+}
+
+enum Device {
+  DESKTOP
+  MOBILE
+  TABLET
+}
+
+model LearningModelPattern {
+  id              String   @id @default(uuid())
+  learningModelId String   @map("learning_model_id")
+  patternType     String   @map("pattern_type")
+  patternData     Json     @map("pattern_data")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  learningModel LearningModel @relation(fields: [learningModelId], references: [id], onDelete: Cascade)
+
+  @@map("learning_model_patterns")
+}
+
+// ============================================
+// Daily Commitment Tracking
+// ============================================
+
+model DailyRecord {
+  id                 String   @id @default(uuid())
+  userId             String   @map("user_id")
+  date               DateTime @db.Date
+  commitmentMet      Boolean  @default(false) @map("commitment_met")
+  questionsAnswered  Int      @default(0) @map("questions_answered")
+  timeSpentMinutes   Int      @default(0) @map("time_spent_minutes")
+  sessionsCompleted  Int      @default(0) @map("sessions_completed")
+  busyWeekMode       Boolean  @default(false) @map("busy_week_mode")
+  vacationMode       Boolean  @default(false) @map("vacation_mode")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_records")
+}
+
+// ============================================
+// Learning Goals
+// ============================================
+
+model Goal {
+  id           String     @id @default(uuid())
+  userId       String     @map("user_id")
+  title        String
+  goalType     GoalType   @map("goal_type")
+  targetValue  Int?       @map("target_value")
+  currentValue Int        @default(0) @map("current_value")
+  targetUnit   String?    @map("target_unit")
+  deadline     DateTime?
+  status       GoalStatus @default(ACTIVE)
+  completedAt  DateTime?  @map("completed_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones GoalMilestone[]
+
+  @@map("goals")
+}
+
+enum GoalType {
+  TIME
+  TOPIC
+  OUTCOME
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+model GoalMilestone {
+  id                  String    @id @default(uuid())
+  goalId              String    @map("goal_id")
+  milestonePercentage Int       @map("milestone_percentage")
+  reachedAt           DateTime? @map("reached_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@map("goal_milestones")
+}
+
+// ============================================
+// Email Prompts
+// ============================================
+
+model EmailPrompt {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  topicId       String    @map("topic_id")
+  questionText  String    @map("question_text")
+  correctAnswer String    @map("correct_answer")
+  sentAt        DateTime  @default(now()) @map("sent_at")
+  openedAt      DateTime? @map("opened_at")
+  repliedAt     DateTime? @map("replied_at")
+  userResponse  String?   @map("user_response")
+  isCorrect     Boolean?  @map("is_correct")
+  feedbackSentAt DateTime? @map("feedback_sent_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@map("email_prompts")
+}
+
+// ============================================
+// Code Editor Snippets
+// ============================================
+
+model CodeSnippet {
+  id        String       @id @default(uuid())
+  sessionId String       @map("session_id")
+  userId    String       @map("user_id")
+  language  CodeLanguage
+  code      String
+  output    String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("code_snippets")
+}
+
+enum CodeLanguage {
+  JAVASCRIPT
+  PYTHON
+  HTML
+  CSS
+}
+
+// ============================================
+// Timed Sessions
+// ============================================
+
+model TimedSession {
+  id                String             @id @default(uuid())
+  userId            String             @map("user_id")
+  sessionType       TimedSessionType   @map("session_type")
+  topicFilter       String?            @map("topic_filter")
+  questionsTotal    Int                @map("questions_total")
+  questionsAnswered Int                @default(0) @map("questions_answered")
+  questionsCorrect  Int                @default(0) @map("questions_correct")
+  timeLimitSeconds  Int                @map("time_limit_seconds")
+  timeUsedSeconds   Int                @default(0) @map("time_used_seconds")
+  status            TimedSessionStatus @default(ACTIVE)
+  startedAt         DateTime           @default(now()) @map("started_at")
+  completedAt       DateTime?          @map("completed_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("timed_sessions")
+}
+
+enum TimedSessionType {
+  RAPID
+  FOCUSED
+  COMPREHENSIVE
+}
+
+enum TimedSessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
