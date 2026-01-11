@@ -34,6 +34,57 @@ router.get('/', requirePro, async (req: AuthenticatedRequest, res: Response, nex
   }
 });
 
+// GET /api/goals/approaching-deadlines (must be before /:id route)
+router.get('/approaching-deadlines', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const daysAhead = parseInt(req.query.days as string) || 7;
+    const now = new Date();
+    const futureDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+    const goals = await prisma.goal.findMany({
+      where: {
+        userId: req.user!.id,
+        status: 'ACTIVE',
+        deadline: {
+          not: null,
+          lte: futureDate,
+          gte: now,
+        },
+      },
+      include: { milestones: true },
+      orderBy: { deadline: 'asc' },
+    });
+
+    // Calculate days remaining and predicted completion for each goal
+    const goalsWithPrediction = goals.map((goal) => {
+      const daysRemaining = goal.deadline
+        ? Math.ceil((new Date(goal.deadline).getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+        : null;
+
+      const progress = goal.targetValue
+        ? (goal.currentValue / goal.targetValue) * 100
+        : 0;
+
+      // Predict if goal will be completed on time based on current progress rate
+      const daysSinceCreated = Math.max(1, Math.ceil((now.getTime() - new Date(goal.createdAt).getTime()) / (24 * 60 * 60 * 1000)));
+      const progressPerDay = progress / daysSinceCreated;
+      const daysToComplete = progressPerDay > 0 ? (100 - progress) / progressPerDay : Infinity;
+      const predictedOnTime = daysRemaining !== null ? daysToComplete <= daysRemaining : true;
+
+      return {
+        ...goal,
+        daysRemaining,
+        progressPercentage: Math.round(progress),
+        predictedOnTime,
+      };
+    });
+
+    res.json(goalsWithPrediction);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/goals
 router.post('/', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

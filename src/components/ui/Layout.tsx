@@ -7,12 +7,22 @@ import { useAuthStore } from '../../stores/authStore';
 
 const API_BASE = 'http://localhost:3001/api';
 
+interface ApproachingGoal {
+  id: string;
+  title: string;
+  daysRemaining: number;
+  progressPercentage: number;
+  predictedOnTime: boolean;
+}
+
 export default function Layout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated } = useAuthStore();
   const [dueTopicsCount, setDueTopicsCount] = useState(0);
   const [showReviewBanner, setShowReviewBanner] = useState(true);
+  const [approachingGoals, setApproachingGoals] = useState<ApproachingGoal[]>([]);
+  const [showGoalDeadlineBanner, setShowGoalDeadlineBanner] = useState(true);
 
   // Fetch topics due for review
   useEffect(() => {
@@ -39,6 +49,32 @@ export default function Layout() {
 
     fetchDueTopics();
   }, [isAuthenticated, location.pathname]);
+
+  // Fetch goals with approaching deadlines
+  useEffect(() => {
+    const fetchApproachingGoals = async () => {
+      if (!isAuthenticated() || user?.tier !== 'PRO') return;
+
+      try {
+        const { accessToken } = useAuthStore.getState();
+        const response = await fetch(`${API_BASE}/goals/approaching-deadlines?days=7`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const goals = await response.json();
+          setApproachingGoals(goals);
+        }
+      } catch (err) {
+        console.error('Failed to fetch approaching goals:', err);
+      }
+    };
+
+    fetchApproachingGoals();
+  }, [isAuthenticated, user?.tier, location.pathname]);
 
   const navLinks = [
     { to: '/', label: 'Home' },
@@ -80,6 +116,53 @@ export default function Layout() {
                 </Link>
                 <button
                   onClick={() => setShowReviewBanner(false)}
+                  className="p-1 hover:bg-background/50 transition-colors"
+                  aria-label="Dismiss notification"
+                >
+                  <svg className="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Goal Deadline Reminder Banner */}
+      {isAuthenticated() && user?.tier === 'PRO' && approachingGoals.length > 0 && showGoalDeadlineBanner && (
+        <div className="bg-primary/30 border-b-3 border-border">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span className="font-heading font-semibold text-text">
+                  {approachingGoals.length === 1 ? (
+                    <>
+                      <strong>"{approachingGoals[0].title}"</strong> due in{' '}
+                      <strong>{approachingGoals[0].daysRemaining}</strong> day{approachingGoals[0].daysRemaining !== 1 ? 's' : ''}
+                      {!approachingGoals[0].predictedOnTime && (
+                        <span className="text-error ml-2">(at risk)</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <strong>{approachingGoals.length}</strong> goals have deadlines approaching!
+                    </>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/goals"
+                  className="px-3 py-1 bg-primary border-2 border-border font-heading font-semibold text-sm hover:shadow-brutal transition-all"
+                >
+                  View Goals
+                </Link>
+                <button
+                  onClick={() => setShowGoalDeadlineBanner(false)}
                   className="p-1 hover:bg-background/50 transition-colors"
                   aria-label="Dismiss notification"
                 >
