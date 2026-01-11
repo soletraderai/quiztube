@@ -5,7 +5,11 @@ import { prisma } from '../index.js';
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+// Only initialize Stripe if a real key is provided
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeKey && stripeKey !== 'sk_test_placeholder'
+  ? new Stripe(stripeKey)
+  : null;
 
 // Stripe webhook - needs raw body
 router.post(
@@ -13,6 +17,10 @@ router.post(
   express.raw({ type: 'application/json' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!stripe) {
+        return res.status(503).json({ error: 'Stripe is not configured' });
+      }
+
       const sig = req.headers['stripe-signature'];
       const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 

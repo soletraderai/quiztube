@@ -60,20 +60,34 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
 // POST /api/sessions
 router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { videoUrl } = req.body;
+    const {
+      videoUrl,
+      videoId,
+      videoTitle,
+      videoThumbnail,
+      videoDuration,
+      channelId,
+      channelName,
+      transcript,
+      status,
+      localSessionId,
+      sessionData,
+    } = req.body;
 
     const session = await prisma.session.create({
       data: {
         userId: req.user!.id,
-        videoId: 'placeholder',
-        videoTitle: 'New Session',
-        videoUrl,
-        videoThumbnail: '',
-        videoDuration: 0,
-        channelId: 'unknown',
-        channelName: 'Unknown',
-        transcript: '',
-        status: 'SETUP',
+        videoId: videoId || 'placeholder',
+        videoTitle: videoTitle || 'New Session',
+        videoUrl: videoUrl || '',
+        videoThumbnail: videoThumbnail || '',
+        videoDuration: videoDuration || 0,
+        channelId: channelId || 'unknown',
+        channelName: channelName || 'Unknown',
+        transcript: transcript || '',
+        status: status || 'SETUP',
+        localSessionId: localSessionId || null,
+        sessionData: sessionData ? JSON.parse(sessionData) : null,
       },
     });
 
@@ -87,9 +101,16 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
 router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
+
+    // Parse sessionData if it's a string
+    const updateData = { ...req.body };
+    if (updateData.sessionData && typeof updateData.sessionData === 'string') {
+      updateData.sessionData = JSON.parse(updateData.sessionData);
+    }
+
     const session = await prisma.session.updateMany({
       where: { id, userId: req.user!.id },
-      data: req.body,
+      data: updateData,
     });
 
     if (session.count === 0) {

@@ -192,6 +192,8 @@ model Session {
   aiSummary          String?       @map("ai_summary")
   keyTakeaways       String[]      @default([]) @map("key_takeaways")
   recommendations    String[]      @default([]) @map("recommendations")
+  localSessionId     String?       @map("local_session_id")
+  sessionData        Json?         @map("session_data")
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 

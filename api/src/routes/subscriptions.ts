@@ -6,7 +6,11 @@ import { AppError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+// Only initialize Stripe if a real key is provided
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeKey && stripeKey !== 'sk_test_placeholder'
+  ? new Stripe(stripeKey)
+  : null;
 
 const PRICES = {
   monthly: process.env.STRIPE_PRICE_MONTHLY || 'price_monthly',
@@ -34,6 +38,10 @@ router.get('/status', async (req: AuthenticatedRequest, res: Response, next: Nex
 // POST /api/subscriptions/checkout
 router.post('/checkout', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!stripe) {
+      throw new AppError(503, 'Payment processing is not configured', 'STRIPE_NOT_CONFIGURED');
+    }
+
     const { priceType } = req.body; // 'monthly' or 'yearly'
 
     const priceId = priceType === 'yearly' ? PRICES.yearly : PRICES.monthly;
@@ -85,6 +93,10 @@ router.post('/checkout', async (req: AuthenticatedRequest, res: Response, next: 
 // POST /api/subscriptions/portal
 router.post('/portal', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!stripe) {
+      throw new AppError(503, 'Payment processing is not configured', 'STRIPE_NOT_CONFIGURED');
+    }
+
     const subscription = await prisma.subscription.findUnique({
       where: { userId: req.user!.id },
     });
