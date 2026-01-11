@@ -5,9 +5,7 @@ import { prisma } from '../index.js';
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-11-20.acacia',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
 // Stripe webhook - needs raw body
 router.post(

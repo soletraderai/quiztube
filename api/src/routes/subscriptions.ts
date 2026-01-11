@@ -6,9 +6,7 @@ import { AppError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-11-20.acacia',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
 const PRICES = {
   monthly: process.env.STRIPE_PRICE_MONTHLY || 'price_monthly',

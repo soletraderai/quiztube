@@ -38,8 +38,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
 // GET /api/sessions/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const { id } = req.params;
     const session = await prisma.session.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
       include: {
         sources: true,
         topics: { include: { questions: true } },
@@ -85,8 +86,9 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
 // PATCH /api/sessions/:id
 router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const { id } = req.params;
     const session = await prisma.session.updateMany({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
       data: req.body,
     });
 
@@ -94,7 +96,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
       throw new AppError(404, 'Session not found', 'SESSION_NOT_FOUND');
     }
 
-    const updated = await prisma.session.findUnique({ where: { id: req.params.id } });
+    const updated = await prisma.session.findUnique({ where: { id } });
     res.json(updated);
   } catch (error) {
     next(error);
@@ -104,8 +106,9 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
 // DELETE /api/sessions/:id
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const { id } = req.params;
     const session = await prisma.session.deleteMany({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (session.count === 0) {
@@ -121,8 +124,9 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: Nex
 // GET /api/sessions/:id/sources
 router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const { id } = req.params;
     const session = await prisma.session.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!session) {
@@ -130,7 +134,7 @@ router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next
     }
 
     const sources = await prisma.sessionSource.findMany({
-      where: { sessionId: req.params.id },
+      where: { sessionId: id },
     });
 
     res.json(sources);
@@ -142,8 +146,9 @@ router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next
 // GET /api/sessions/:id/summary
 router.get('/:id/summary', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const { id } = req.params;
     const session = await prisma.session.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id, userId: req.user!.id },
     });
 
     if (!session) {
