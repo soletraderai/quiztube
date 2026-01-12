@@ -1,14 +1,100 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import { useSessionStore } from '../stores/sessionStore';
+import { useAuthStore } from '../stores/authStore';
+
+const API_BASE = 'http://localhost:3001/api';
 
 export default function SessionNotes() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const { getSession } = useSessionStore();
+  const { accessToken, isAuthenticated } = useAuthStore();
+
+  const [showFollowPrompt, setShowFollowPrompt] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isAlreadyFollowing, setIsAlreadyFollowing] = useState(false);
+  const [followDismissed, setFollowDismissed] = useState(false);
 
   const session = sessionId ? getSession(sessionId) : undefined;
+
+  // Generate a channelId from the channel name (slugified)
+  const getChannelId = (channelName: string) => {
+    return channelName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+  };
+
+  // Check if channel is already followed
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!session || !isAuthenticated() || !session.video.channel) return;
+
+      const channelId = getChannelId(session.video.channel);
+
+      try {
+        const response = await fetch(`${API_BASE}/channels`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const channels = await response.json();
+          const isFollowed = channels.some(
+            (c: { channelId: string }) => c.channelId === channelId
+          );
+          setIsAlreadyFollowing(isFollowed);
+
+          // Show prompt if session is complete and channel is not followed
+          if (session.completedAt && !isFollowed && !followDismissed) {
+            setShowFollowPrompt(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check follow status:', error);
+      }
+    };
+
+    checkFollowStatus();
+  }, [session, accessToken, isAuthenticated, followDismissed]);
+
+  const handleFollowChannel = async () => {
+    if (!session || !session.video.channel) return;
+
+    const channelId = getChannelId(session.video.channel);
+
+    setIsFollowing(true);
+    try {
+      const response = await fetch(`${API_BASE}/channels/${channelId}/follow`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          channelName: session.video.channel,
+          channelThumbnail: null, // We don't have channel thumbnail
+        }),
+      });
+
+      if (response.ok) {
+        setIsAlreadyFollowing(true);
+        setShowFollowPrompt(false);
+      }
+    } catch (error) {
+      console.error('Failed to follow channel:', error);
+    } finally {
+      setIsFollowing(false);
+    }
+  };
+
+  const handleDismissFollowPrompt = () => {
+    setFollowDismissed(true);
+    setShowFollowPrompt(false);
+  };
 
   if (!session) {
     return (
@@ -69,6 +155,76 @@ export default function SessionNotes() {
             </h2>
             <p className="text-text/80">
               {getCompletionMessage()}
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Follow Channel Prompt */}
+      {showFollowPrompt && session.video.channel && (
+        <Card className="bg-secondary/20 border-secondary">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-secondary/30 flex items-center justify-center border-2 border-border">
+                <svg
+                  className="w-6 h-6 text-text"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="font-heading font-bold text-text">
+                  Follow {session.video.channel}?
+                </p>
+                <p className="text-sm text-text/70">
+                  Get notified about new videos from this channel
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleFollowChannel}
+                disabled={isFollowing}
+                variant="primary"
+              >
+                {isFollowing ? 'Following...' : 'Follow Channel'}
+              </Button>
+              <Button
+                onClick={handleDismissFollowPrompt}
+                variant="ghost"
+              >
+                Not Now
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Already Following Badge */}
+      {isAlreadyFollowing && session.video.channel && !showFollowPrompt && (
+        <Card className="bg-primary/10 border-primary">
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-5 h-5 text-success"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <p className="text-sm text-text">
+              You're following <strong>{session.video.channel}</strong>
             </p>
           </div>
         </Card>
