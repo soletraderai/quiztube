@@ -216,6 +216,21 @@ router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, ne
     const shouldCollect = !learningModel || learningModel.timeOfDayEnabled;
 
     if (shouldCollect) {
+      // Calculate difficulty sweet spot based on accuracy
+      // Target accuracy is 70-80%, which corresponds to a sweet spot of 0.75
+      // Accuracy of 100% suggests questions are too easy (sweet spot should be higher)
+      // Accuracy of 50% suggests questions are too hard (sweet spot should be lower)
+      let difficultySweetSpot: number | undefined = undefined;
+      if (session.questionsAnswered > 0) {
+        const accuracy = session.questionsCorrect / session.questionsAnswered;
+        // Map accuracy to sweet spot: high accuracy = need harder, low accuracy = need easier
+        // Sweet spot ranges from 0.3 (very easy) to 0.9 (very hard)
+        // Accuracy > 80% -> increase sweet spot (make harder)
+        // Accuracy < 70% -> decrease sweet spot (make easier)
+        // Accuracy 70-80% -> sweet spot is 0.75 (optimal)
+        difficultySweetSpot = Math.min(0.9, Math.max(0.3, accuracy * 0.6 + 0.3));
+      }
+
       // Upsert the learning model with updated data
       const model = await prisma.learningModel.upsert({
         where: { userId: req.user!.id },
@@ -225,6 +240,7 @@ router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, ne
           optimalTime: timeOfDay,
           lastUpdated: new Date(),
           confidenceScore: { increment: 0.05 },
+          ...(difficultySweetSpot !== undefined && { difficultySweetSpot }),
         },
         create: {
           userId: req.user!.id,
@@ -232,6 +248,7 @@ router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, ne
           avgSessionDuration: session.timeSpentSeconds > 0 ? session.timeSpentSeconds : null,
           optimalTime: timeOfDay,
           confidenceScore: 0.1,
+          difficultySweetSpot: difficultySweetSpot || 0.75,
         },
       });
 

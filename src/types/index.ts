@@ -69,6 +69,7 @@ export interface SessionScore {
   topicsCompleted: number;
   topicsSkipped: number;
   questionsAnswered: number;
+  questionsCorrect: number;
   bookmarkedTopics: number;
   digDeeperCount: number;
 }

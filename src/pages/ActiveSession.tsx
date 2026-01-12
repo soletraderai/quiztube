@@ -68,6 +68,38 @@ function detectFeedbackType(feedback: string): FeedbackType {
   return 'good';
 }
 
+// Check if answer is considered "correct" for accuracy tracking
+function isAnswerCorrect(feedbackType: FeedbackType): boolean {
+  // Consider 'excellent' and 'good' as correct answers
+  return feedbackType === 'excellent' || feedbackType === 'good';
+}
+
+// Calculate optimal difficulty based on accuracy - targets 70-80% accuracy zone
+function calculateOptimalDifficulty(
+  questionsAnswered: number,
+  questionsCorrect: number,
+  currentDifficulty: 'standard' | 'easier' | 'harder'
+): 'standard' | 'easier' | 'harder' | null {
+  // Need at least 3 answers to calibrate
+  if (questionsAnswered < 3) return null;
+
+  const accuracy = (questionsCorrect / questionsAnswered) * 100;
+
+  // Target: 70-80% accuracy zone
+  if (accuracy > 85 && currentDifficulty !== 'harder') {
+    // User is getting too many right - make it harder
+    return 'harder';
+  } else if (accuracy < 65 && currentDifficulty !== 'easier') {
+    // User is struggling - make it easier
+    return 'easier';
+  } else if (accuracy >= 70 && accuracy <= 80 && currentDifficulty !== 'standard') {
+    // In the sweet spot - return to standard
+    return 'standard';
+  }
+
+  return null; // No change needed
+}
+
 export default function ActiveSession() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -217,10 +249,34 @@ export default function ActiveSession() {
         answeredAt: Date.now(),
       });
 
-      // Update score
+      // Determine if answer is correct based on feedback sentiment
+      const feedbackType = detectFeedbackType(feedback);
+      const wasCorrect = isAnswerCorrect(feedbackType);
+      const newQuestionsAnswered = session.score.questionsAnswered + 1;
+      const newQuestionsCorrect = session.score.questionsCorrect + (wasCorrect ? 1 : 0);
+
+      // Update score with accuracy tracking
       updateScore(session.id, {
-        questionsAnswered: session.score.questionsAnswered + 1,
+        questionsAnswered: newQuestionsAnswered,
+        questionsCorrect: newQuestionsCorrect,
       });
+
+      // Auto-calibrate difficulty based on accuracy (target: 70-80% zone)
+      const newDifficulty = calculateOptimalDifficulty(
+        newQuestionsAnswered,
+        newQuestionsCorrect,
+        session.difficulty || 'standard'
+      );
+
+      if (newDifficulty) {
+        updateSession(session.id, { difficulty: newDifficulty });
+        const accuracy = Math.round((newQuestionsCorrect / newQuestionsAnswered) * 100);
+        const difficultyLabel = newDifficulty === 'harder' ? 'increased' : newDifficulty === 'easier' ? 'decreased' : 'adjusted';
+        setToast({
+          message: `Difficulty ${difficultyLabel} to match your ${accuracy}% accuracy`,
+          type: 'info',
+        });
+      }
 
       setPhase('feedback');
     } catch (err) {
@@ -376,21 +432,33 @@ export default function ActiveSession() {
             <p className="text-sm text-text/70">{currentTopic.title}</p>
           </div>
 
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={session.difficulty === 'easier' ? 'primary' : 'ghost'}
-              onClick={() => handleDifficultyChange('easier')}
-            >
-              Easier
-            </Button>
-            <Button
-              size="sm"
-              variant={session.difficulty === 'harder' ? 'primary' : 'ghost'}
-              onClick={() => handleDifficultyChange('harder')}
-            >
-              Harder
-            </Button>
+          <div className="flex items-center gap-3">
+            {/* Accuracy indicator - shows after answering 3+ questions */}
+            {session.score.questionsAnswered >= 3 && (
+              <div className="text-sm text-center">
+                <span className="font-heading font-semibold">
+                  {Math.round((session.score.questionsCorrect / session.score.questionsAnswered) * 100)}%
+                </span>
+                <span className="text-text/60 ml-1">accuracy</span>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={session.difficulty === 'easier' ? 'primary' : 'ghost'}
+                onClick={() => handleDifficultyChange('easier')}
+              >
+                Easier
+              </Button>
+              <Button
+                size="sm"
+                variant={session.difficulty === 'harder' ? 'primary' : 'ghost'}
+                onClick={() => handleDifficultyChange('harder')}
+              >
+                Harder
+              </Button>
+            </div>
           </div>
         </div>
 

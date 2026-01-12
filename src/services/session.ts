@@ -109,6 +109,7 @@ export async function createSession(
       topicsCompleted: 0,
       topicsSkipped: 0,
       questionsAnswered: 0,
+      questionsCorrect: 0,
       bookmarkedTopics: 0,
       digDeeperCount: 0,
     },
