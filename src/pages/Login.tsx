@@ -4,11 +4,14 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
+import MigrationPrompt from '../components/ui/MigrationPrompt';
 import { useAuthStore, authApi } from '../stores/authStore';
+import { useSessionStore } from '../stores/sessionStore';
 
 export default function Login() {
   const navigate = useNavigate();
   const { setUser, setAccessToken, setLoading, isLoading } = useAuthStore();
+  const { getLocalSessionCount, migrateLocalSessions, dismissMigration, migrationDismissed } = useSessionStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -16,6 +19,8 @@ export default function Login() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [showMigrationPrompt, setShowMigrationPrompt] = useState(false);
+  const [localSessionCount, setLocalSessionCount] = useState(0);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -55,10 +60,19 @@ export default function Login() {
 
       setToast({ message: 'Login successful!', type: 'success' });
 
-      // Redirect to home (onboarding can be added later)
-      setTimeout(() => {
-        navigate('/');
-      }, 500);
+      // Check for local sessions that need migration
+      const sessionCount = getLocalSessionCount();
+
+      if (sessionCount > 0 && !migrationDismissed) {
+        // Show migration prompt
+        setLocalSessionCount(sessionCount);
+        setShowMigrationPrompt(true);
+      } else {
+        // Redirect to home
+        setTimeout(() => {
+          navigate('/');
+        }, 500);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       setToast({ message, type: 'error' });
@@ -66,6 +80,21 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMigrate = async () => {
+    await migrateLocalSessions();
+  };
+
+  const handleSkipMigration = () => {
+    dismissMigration();
+    setShowMigrationPrompt(false);
+    navigate('/');
+  };
+
+  const handleMigrationClose = () => {
+    setShowMigrationPrompt(false);
+    navigate('/');
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -89,6 +118,15 @@ export default function Login() {
           onClose={() => setToast(null)}
         />
       )}
+
+      {/* Migration Prompt Modal */}
+      <MigrationPrompt
+        isOpen={showMigrationPrompt}
+        onClose={handleMigrationClose}
+        sessionCount={localSessionCount}
+        onMigrate={handleMigrate}
+        onSkip={handleSkipMigration}
+      />
 
       <div className="w-full max-w-md">
         {/* Logo / Title */}

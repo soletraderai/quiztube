@@ -6,12 +6,47 @@ import ProgressBar from '../components/ui/ProgressBar';
 import Toast from '../components/ui/Toast';
 import DigDeeperModal from '../components/ui/DigDeeperModal';
 import { useSessionStore } from '../stores/sessionStore';
-import { useSettingsStore } from '../stores/settingsStore';
 import { evaluateAnswer, RateLimitError, generateFallbackFeedback } from '../services/gemini';
 import type { ChatMessage } from '../types';
 
 type SessionPhase = 'question' | 'feedback' | 'summary';
 type FeedbackType = 'excellent' | 'good' | 'needs-improvement';
+
+// Source type icons
+const sourceTypeIcons: Record<string, { icon: React.ReactNode; color: string }> = {
+  github: {
+    icon: (
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+    ),
+    color: 'bg-gray-800 text-white',
+  },
+  documentation: {
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+      </svg>
+    ),
+    color: 'bg-primary text-text',
+  },
+  article: {
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
+      </svg>
+    ),
+    color: 'bg-secondary text-text',
+  },
+  other: {
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+      </svg>
+    ),
+    color: 'bg-accent text-text',
+  },
+};
 
 // Detect feedback sentiment based on opening phrases
 function detectFeedbackType(feedback: string): FeedbackType {
@@ -44,13 +79,13 @@ export default function ActiveSession() {
     updateQuestion,
     updateScore,
   } = useSessionStore();
-  const { settings } = useSettingsStore();
 
   const [phase, setPhase] = useState<SessionPhase>('question');
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isDigDeeperOpen, setIsDigDeeperOpen] = useState(false);
+  const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
 
   const session = sessionId ? getSession(sessionId) : undefined;
 
@@ -147,37 +182,26 @@ export default function ActiveSession() {
     setLoading(true);
 
     try {
-      // Call Gemini API for feedback
+      // Call server-side AI for feedback
       let feedback: string;
 
-      if (settings.geminiApiKey) {
-        try {
-          feedback = await evaluateAnswer(
-            settings.geminiApiKey,
-            currentTopic,
-            currentQuestion,
-            answer,
-            session.difficulty || 'standard'
-          );
-        } catch (apiError) {
-          console.error('Gemini API error:', apiError);
-          // Handle rate limit errors specifically
-          if (apiError instanceof RateLimitError) {
-            setToast({
-              message: `${apiError.message} You can continue with contextual feedback for now.`,
-              type: 'error',
-            });
-          }
-          // Fallback to contextual feedback if API fails
-          feedback = generateFallbackFeedback(
-            currentTopic,
-            currentQuestion,
-            answer,
-            session.difficulty || 'standard'
-          );
+      try {
+        feedback = await evaluateAnswer(
+          currentTopic,
+          currentQuestion,
+          answer,
+          session.difficulty || 'standard'
+        );
+      } catch (apiError) {
+        console.error('AI API error:', apiError);
+        // Handle rate limit errors specifically
+        if (apiError instanceof RateLimitError) {
+          setToast({
+            message: `${apiError.message} Using contextual feedback for now.`,
+            type: 'error',
+          });
         }
-      } else {
-        // No API key - use contextual feedback based on answer quality
+        // Fallback to contextual feedback if API fails
         feedback = generateFallbackFeedback(
           currentTopic,
           currentQuestion,
@@ -378,6 +402,79 @@ export default function ActiveSession() {
           />
         </div>
       </Card>
+
+      {/* Sources Panel */}
+      {session.knowledgeBase?.sources && session.knowledgeBase.sources.length > 0 && (
+        <Card className="overflow-hidden">
+          <button
+            onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
+            className="w-full flex items-center justify-between p-0 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <svg
+                className="w-5 h-5 text-text"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+              </svg>
+              <span className="font-heading font-semibold text-text">
+                Sources ({session.knowledgeBase.sources.length})
+              </span>
+            </div>
+            <svg
+              className={`w-5 h-5 text-text/70 transition-transform duration-200 ${isSourcesExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+
+          {isSourcesExpanded && (
+            <div className="mt-4 space-y-3 border-t-2 border-border pt-4">
+              {session.knowledgeBase.sources.map((source, index) => {
+                const sourceType = sourceTypeIcons[source.type] || sourceTypeIcons.other;
+                return (
+                  <a
+                    key={index}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-3 bg-surface/50 border-2 border-border hover:shadow-brutal transition-shadow"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center border-2 border-border ${sourceType.color}`}>
+                        {sourceType.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-heading font-semibold text-text text-sm truncate">
+                            {source.title}
+                          </span>
+                          <span className="flex-shrink-0 px-2 py-0.5 text-xs font-medium bg-surface border border-border rounded capitalize">
+                            {source.type}
+                          </span>
+                        </div>
+                        <p className="text-sm text-text/70 mt-1 line-clamp-2">
+                          {source.snippet}
+                        </p>
+                      </div>
+                      <svg className="flex-shrink-0 w-4 h-4 text-text/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                      </svg>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Question Phase */}
       {phase === 'question' && (
@@ -592,7 +689,6 @@ export default function ActiveSession() {
         isOpen={isDigDeeperOpen}
         onClose={() => setIsDigDeeperOpen(false)}
         topic={currentTopic}
-        apiKey={settings.geminiApiKey}
         conversation={currentTopic.digDeeperConversation || []}
         onConversationUpdate={handleDigDeeperConversationUpdate}
         onGenerateQuestion={handleGenerateQuestion}

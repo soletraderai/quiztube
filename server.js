@@ -163,10 +163,10 @@ app.get('/api/transcript/:videoId', async (req, res) => {
 
 // Server-side validation endpoint for settings
 app.post('/api/validate/settings', (req, res) => {
-  const { userName, geminiApiKey, language } = req.body;
+  const { userName, language } = req.body;
   const errors = {};
 
-  console.log(`[Validation API] Validating settings:`, { userName: userName ? '***' : 'empty', geminiApiKey: geminiApiKey ? '***' : 'empty', language });
+  console.log(`[Validation API] Validating settings:`, { userName: userName ? '***' : 'empty', language });
 
   // Username validation
   if (!userName || typeof userName !== 'string') {
@@ -177,18 +177,6 @@ app.post('/api/validate/settings', (req, res) => {
       errors.userName = 'Username cannot be empty or whitespace only';
     } else if (trimmedName.length > 50) {
       errors.userName = 'Username must be 50 characters or less';
-    }
-  }
-
-  // API Key validation
-  if (!geminiApiKey || typeof geminiApiKey !== 'string') {
-    errors.geminiApiKey = 'API key is required';
-  } else {
-    const trimmedKey = geminiApiKey.trim();
-    if (!trimmedKey) {
-      errors.geminiApiKey = 'API key cannot be empty or whitespace only';
-    } else if (trimmedKey.length < 10) {
-      errors.geminiApiKey = 'API key seems too short';
     }
   }
 
@@ -260,9 +248,105 @@ app.post('/api/validate/youtube-url', (req, res) => {
   });
 });
 
+// Gemini AI proxy endpoint - uses server-side API key
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+app.post('/api/ai/generate', async (req, res) => {
+  const { prompt } = req.body;
+
+  if (!prompt || typeof prompt !== 'string') {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  if (!GEMINI_API_KEY) {
+    console.error('[AI API] GEMINI_API_KEY not configured');
+    return res.status(500).json({ error: 'AI service not configured. Please set GEMINI_API_KEY environment variable.' });
+  }
+
+  console.log(`[AI API] Processing request with prompt length: ${prompt.length}`);
+
+  try {
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+
+      // Handle rate limiting specifically (HTTP 429)
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '60', 10);
+        return res.status(429).json({
+          error: `Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`,
+          retryAfter
+        });
+      }
+
+      // Handle quota exceeded
+      const errorMessage = errorData.error?.message || response.statusText;
+      if (errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate')) {
+        return res.status(429).json({
+          error: 'API quota exceeded. Please wait a few minutes before trying again.',
+          retryAfter: 60
+        });
+      }
+
+      console.error(`[AI API] Gemini API error: ${response.status} - ${errorMessage}`);
+      return res.status(response.status).json({ error: `AI API error: ${errorMessage}` });
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      // Check for rate limit errors in response body
+      if (data.error.message.toLowerCase().includes('quota') ||
+          data.error.message.toLowerCase().includes('rate')) {
+        return res.status(429).json({
+          error: 'API rate limit reached. Please wait a few minutes before trying again.',
+          retryAfter: 60
+        });
+      }
+      console.error(`[AI API] Gemini API error in response:`, data.error);
+      return res.status(500).json({ error: `AI API error: ${data.error.message}` });
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      return res.status(500).json({ error: 'No response from AI API' });
+    }
+
+    console.log(`[AI API] Successfully generated response with length: ${text.length}`);
+    res.json({ text });
+  } catch (error) {
+    console.error(`[AI API] Error:`, error.message);
+    res.status(500).json({ error: `AI service error: ${error.message}` });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`[Transcript Proxy] Server running on http://localhost:${PORT}`);
   console.log(`[Transcript Proxy] API endpoint: http://localhost:${PORT}/api/transcript/:videoId`);
+  console.log(`[Transcript Proxy] AI endpoint: http://localhost:${PORT}/api/ai/generate`);
   console.log(`[Transcript Proxy] Validation endpoints: /api/validate/settings, /api/validate/youtube-url`);
+  if (!GEMINI_API_KEY) {
+    console.warn('[Transcript Proxy] Warning: GEMINI_API_KEY not set. AI features will not work.');
+  }
 });

@@ -15,7 +15,6 @@ export type ProgressCallback = (state: ProcessingState) => void;
 // Create a new learning session from a YouTube URL
 export async function createSession(
   youtubeUrl: string,
-  apiKey: string,
   onProgress?: ProgressCallback
 ): Promise<Session> {
   // Step 1: Extract video ID
@@ -80,7 +79,7 @@ export async function createSession(
   let estimatedDuration;
 
   try {
-    const result = await generateTopicsFromVideo(apiKey, metadata, transcript || undefined);
+    const result = await generateTopicsFromVideo(metadata, transcript || undefined);
     topics = result.topics;
     estimatedDuration = result.estimatedDuration;
   } catch (error) {

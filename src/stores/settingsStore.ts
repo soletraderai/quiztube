@@ -11,7 +11,6 @@ interface SettingsState {
 
 const defaultSettings: Settings = {
   userName: '',
-  geminiApiKey: '',
   language: 'en',
   tutorPersonality: 'PROFESSOR',
   learningStyle: 'visual',
@@ -28,7 +27,7 @@ export const useSettingsStore = create<SettingsState>()(
       clearSettings: () => set({ settings: defaultSettings }),
       isConfigured: () => {
         const { settings } = get();
-        return !!(settings.userName && settings.geminiApiKey);
+        return !!settings.userName;
       },
     }),
     {

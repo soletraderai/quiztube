@@ -1,0 +1,296 @@
+{
+  "exportDate": "2026-01-11T13:11:46.188Z",
+  "profile": {
+    "email": "logintest123@example.com",
+    "tier": "PRO"
+  },
+  "settings": {
+    "userName": "",
+    "language": "en",
+    "tutorPersonality": "PROFESSOR",
+    "learningStyle": "visual"
+  },
+  "notificationPreferences": {
+    "pushEnabled": true,
+    "emailDigest": "weekly",
+    "emailNewFeatures": true,
+    "emailReminders": true
+  },
+  "learningModel": {
+    "hasData": true,
+    "optimalTime": "evening",
+    "avgSessionDuration": null,
+    "difficultySweetSpot": null,
+    "preferredPacing": null,
+    "preferredDevice": null,
+    "sessionsAnalyzed": 1,
+    "confidenceScore": 0.05,
+    "patterns": [
+      {
+        "id": "6f163c03-23db-44c8-806b-5c86a4294703",
+        "learningModelId": "33b4773f-d6f0-42e5-a9c4-0c0b6491ad84",
+        "patternType": "session_time",
+        "patternData": {
+          "hour": 22,
+          "timeOfDay": "evening",
+          "completedAt": "2026-01-11T12:20:36.436Z",
+          "questionsCorrect": 0,
+          "questionsAnswered": 0
+        },
+        "createdAt": "2026-01-11T12:20:36.443Z",
+        "updatedAt": "2026-01-11T12:20:36.443Z"
+      }
+    ],
+    "signals": {
+      "timeOfDay": true,
+      "sessionDuration": true,
+      "difficulty": true,
+      "pacing": true,
+      "device": true
+    }
+  },
+  "sessions": {
+    "sessions": [
+      {
+        "id": "8401fc01-0544-4e5a-bdb6-54af34e69d95",
+        "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+        "videoId": "placeholder",
+        "videoTitle": "New Session",
+        "videoUrl": "https://youtube.com/watch?v=test123",
+        "videoThumbnail": "",
+        "videoDuration": 0,
+        "channelId": "unknown",
+        "channelName": "Unknown",
+        "transcript": "",
+        "status": "COMPLETED",
+        "startedAt": null,
+        "completedAt": "2026-01-11T12:20:36.427Z",
+        "timeSpentSeconds": 0,
+        "questionsGenerated": 0,
+        "questionsAnswered": 0,
+        "questionsCorrect": 0,
+        "aiSummary": null,
+        "keyTakeaways": [],
+        "recommendations": [],
+        "createdAt": "2026-01-11T12:20:30.378Z",
+        "updatedAt": "2026-01-11T12:20:36.428Z"
+      },
+      {
+        "id": "2502a013-6e5c-4db7-9295-cd686fbc7319",
+        "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+        "videoId": "placeholder",
+        "videoTitle": "New Session",
+        "videoUrl": "https://youtube.com/watch?v=optout_test",
+        "videoThumbnail": "",
+        "videoDuration": 0,
+        "channelId": "unknown",
+        "channelName": "Unknown",
+        "transcript": "",
+        "status": "COMPLETED",
+        "startedAt": null,
+        "completedAt": "2026-01-11T12:10:48.943Z",
+        "timeSpentSeconds": 0,
+        "questionsGenerated": 0,
+        "questionsAnswered": 0,
+        "questionsCorrect": 0,
+        "aiSummary": null,
+        "keyTakeaways": [],
+        "recommendations": [],
+        "createdAt": "2026-01-11T12:10:41.909Z",
+        "updatedAt": "2026-01-11T12:10:48.944Z"
+      },
+      {
+        "id": "26162400-17b1-4711-a091-a6f6fed5dfd0",
+        "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+        "videoId": "video789",
+        "videoTitle": "New Session",
+        "videoUrl": "https://youtube.com/watch?v=learning789",
+        "videoThumbnail": "",
+        "videoDuration": 0,
+        "channelId": "UC_test_channel_123",
+        "channelName": "Test Tech Channel",
+        "transcript": "",
+        "status": "COMPLETED",
+        "startedAt": null,
+        "completedAt": "2026-01-11T12:10:19.011Z",
+        "timeSpentSeconds": 600,
+        "questionsGenerated": 0,
+        "questionsAnswered": 5,
+        "questionsCorrect": 4,
+        "aiSummary": null,
+        "keyTakeaways": [],
+        "recommendations": [],
+        "createdAt": "2026-01-11T12:10:04.268Z",
+        "updatedAt": "2026-01-11T12:10:19.012Z"
+      },
+      {
+        "id": "7c76b64d-c3b3-4637-9628-592a28fe915e",
+        "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+        "videoId": "video456",
+        "videoTitle": "New Session",
+        "videoUrl": "https://youtube.com/watch?v=test456",
+        "videoThumbnail": "",
+        "videoDuration": 0,
+        "channelId": "UC_test_channel_123",
+        "channelName": "Test Tech Channel",
+        "transcript": "",
+        "status": "COMPLETED",
+        "startedAt": null,
+        "completedAt": "2026-01-11T12:08:53.933Z",
+        "timeSpentSeconds": 0,
+        "questionsGenerated": 0,
+        "questionsAnswered": 0,
+        "questionsCorrect": 0,
+        "aiSummary": null,
+        "keyTakeaways": [],
+        "recommendations": [],
+        "createdAt": "2026-01-11T12:08:39.299Z",
+        "updatedAt": "2026-01-11T12:08:53.933Z"
+      },
+      {
+        "id": "e84fb0c3-8f5b-4e05-9361-b01497705dc7",
+        "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+        "videoId": "placeholder",
+        "videoTitle": "New Session",
+        "videoUrl": "https://youtube.com/watch?v=test123",
+        "videoThumbnail": "",
+        "videoDuration": 0,
+        "channelId": "UC_test_channel_123",
+        "channelName": "Test Tech Channel",
+        "transcript": "",
+        "status": "COMPLETED",
+        "startedAt": null,
+        "completedAt": "2026-01-11T12:08:13.416Z",
+        "timeSpentSeconds": 0,
+        "questionsGenerated": 0,
+        "questionsAnswered": 0,
+        "questionsCorrect": 0,
+        "aiSummary": null,
+        "keyTakeaways": [],
+        "recommendations": [],
+        "createdAt": "2026-01-11T12:07:59.714Z",
+        "updatedAt": "2026-01-11T12:08:13.417Z"
+      },
+      {
+        "id": "30e118b3-85a0-4061-8b5f-d9180fdbd259",
+        "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+        "videoId": "placeholder",
+        "videoTitle": "New Session",
+        "videoUrl": "https://youtube.com/watch?v=userA_isolation_test",
+        "videoThumbnail": "",
+        "videoDuration": 0,
+        "channelId": "unknown",
+        "channelName": "Unknown",
+        "transcript": "",
+        "status": "SETUP",
+        "startedAt": null,
+        "completedAt": null,
+        "timeSpentSeconds": 0,
+        "questionsGenerated": 0,
+        "questionsAnswered": 0,
+        "questionsCorrect": 0,
+        "aiSummary": null,
+        "keyTakeaways": [],
+        "recommendations": [],
+        "createdAt": "2026-01-11T10:50:24.167Z",
+        "updatedAt": "2026-01-11T10:50:24.167Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 6,
+      "pages": 1
+    }
+  },
+  "goals": [
+    {
+      "id": "0e3b79df-5570-4f99-9075-9cad33624d74",
+      "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+      "title": "Complete 10 Data Science topics",
+      "goalType": "TOPIC",
+      "targetValue": 15,
+      "currentValue": 3,
+      "targetUnit": "topics",
+      "deadline": "2026-01-15T00:00:00.000Z",
+      "status": "ACTIVE",
+      "completedAt": null,
+      "createdAt": "2026-01-11T12:43:08.803Z",
+      "updatedAt": "2026-01-11T12:58:58.081Z",
+      "milestones": [
+        {
+          "id": "4998eb99-9470-4fb9-9708-d5efe893aa0c",
+          "goalId": "0e3b79df-5570-4f99-9075-9cad33624d74",
+          "milestonePercentage": 50,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:43:08.803Z"
+        },
+        {
+          "id": "3f70b6a8-ec49-4fba-86d9-c57150b6c7c2",
+          "goalId": "0e3b79df-5570-4f99-9075-9cad33624d74",
+          "milestonePercentage": 75,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:43:08.803Z"
+        },
+        {
+          "id": "d398ec1e-dbec-4603-abeb-0c8c86f91729",
+          "goalId": "0e3b79df-5570-4f99-9075-9cad33624d74",
+          "milestonePercentage": 100,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:43:08.803Z"
+        },
+        {
+          "id": "61ab54c8-9452-4212-8b72-1e68c521fb0b",
+          "goalId": "0e3b79df-5570-4f99-9075-9cad33624d74",
+          "milestonePercentage": 25,
+          "reachedAt": "2026-01-11T12:47:16.550Z",
+          "createdAt": "2026-01-11T12:43:08.803Z"
+        }
+      ]
+    },
+    {
+      "id": "f9741cf9-1634-4343-91fb-177ad8b6288b",
+      "userId": "70f7e89a-80b0-43e4-805b-a6daa4f592e6",
+      "title": "Learn JavaScript for 30 minutes daily",
+      "goalType": "TIME",
+      "targetValue": 30,
+      "currentValue": 0,
+      "targetUnit": "minutes",
+      "deadline": null,
+      "status": "ACTIVE",
+      "completedAt": null,
+      "createdAt": "2026-01-11T12:42:01.050Z",
+      "updatedAt": "2026-01-11T12:42:01.050Z",
+      "milestones": [
+        {
+          "id": "aa25e07a-6316-4e20-8ade-75f6bdeb1d38",
+          "goalId": "f9741cf9-1634-4343-91fb-177ad8b6288b",
+          "milestonePercentage": 25,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:42:01.050Z"
+        },
+        {
+          "id": "62034fd6-1a71-4261-8716-52cf8f9fb129",
+          "goalId": "f9741cf9-1634-4343-91fb-177ad8b6288b",
+          "milestonePercentage": 50,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:42:01.050Z"
+        },
+        {
+          "id": "29ac7e28-f26b-4fb4-9e61-5e5d70c64f0a",
+          "goalId": "f9741cf9-1634-4343-91fb-177ad8b6288b",
+          "milestonePercentage": 75,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:42:01.050Z"
+        },
+        {
+          "id": "f6c6ac51-23a0-4697-8d58-dd027df2aab1",
+          "goalId": "f9741cf9-1634-4343-91fb-177ad8b6288b",
+          "milestonePercentage": 100,
+          "reachedAt": null,
+          "createdAt": "2026-01-11T12:42:01.050Z"
+        }
+      ]
+    }
+  ]
+}

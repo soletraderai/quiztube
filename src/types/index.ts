@@ -7,7 +7,6 @@ export type LearningStyle = 'visual' | 'reading' | 'auditory' | 'kinesthetic';
 // Settings type
 export interface Settings {
   userName: string;
-  geminiApiKey: string;
   language: string;
   tutorPersonality: TutorPersonality;
   learningStyle: LearningStyle;

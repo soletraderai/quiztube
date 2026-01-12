@@ -20,7 +20,7 @@ export default function Home() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const navigate = useNavigate();
-  const { settings, isConfigured } = useSettingsStore();
+  const { isConfigured } = useSettingsStore();
   const { library, createSession: saveSession } = useSessionStore();
   const isOnline = useOnlineStatus();
 
@@ -52,9 +52,9 @@ export default function Home() {
       return;
     }
 
-    // Check if settings are configured
+    // Check if settings are configured (user name set)
     if (!isConfigured()) {
-      setToast({ message: 'Please configure your API key in Settings first', type: 'error' });
+      setToast({ message: 'Please configure your name in Settings first', type: 'error' });
       setTimeout(() => navigate('/settings'), 2000);
       return;
     }
@@ -82,7 +82,6 @@ export default function Home() {
       // Create the session using our services
       const session = await createSession(
         trimmedUrl,
-        settings.geminiApiKey,
         (state) => setProcessingState(state)
       );
 
