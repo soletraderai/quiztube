@@ -1,5 +1,66 @@
 # Teachy Phase 2 - Progress Report
 
+## Session 19 - January 13, 2026
+
+### Summary
+Implemented free tier limits and onboarding enhancements. Added session limits (3/month) and question limits (10/session) for free users. Extended onboarding flow with language variant and commitment settings steps. Progress increased from 314/415 to 319/415 (76.9%).
+
+### Current Progress
+- **Passing**: 319/415 features (76.9%)
+- **Phase**: 2
+
+### Session 19 Implemented Features
+
+#### 1. Email Verification Token Expiry - Feature #334
+- Tokens expire after 24 hours
+- Expired tokens return 400 error with clear message
+- Resend verification creates new token with fresh expiry
+- API: GET /api/auth/verify-email/:token returns VERIFICATION_EXPIRED
+
+#### 2. Free Tier Session Limit - Feature #352
+- Free users limited to 3 sessions per month
+- Count resets at start of each month
+- Returns 402 status with SESSION_LIMIT_REACHED code
+- Message prompts upgrade to Pro for unlimited sessions
+
+#### 3. Free Tier Questions Limit - Feature #353
+- Free users limited to 10 questions per session
+- Returns 402 status with QUESTION_LIMIT_REACHED code
+- Pro users have unlimited questions
+
+#### 4. Onboarding Language Variant - Feature #441
+- Added language-variant step to onboarding flow
+- Options: British, American, Australian English
+- Each variant includes description
+- Selection saved to user preferences
+
+#### 5. Onboarding Commitment Settings - Feature #442
+- Added commitment step to onboarding flow
+- Daily commitment options: 5, 15, 30, 45 minutes
+- Preferred time picker for learning reminders
+- Learning days selector (Mon-Sun checkboxes)
+- Progress indicator updated (now 6 steps)
+
+### Files Modified
+- api/src/routes/sessions.ts - Added free tier session limit check
+- api/src/routes/questions.ts - Added free tier questions limit check
+- src/pages/Onboarding.tsx - Added language-variant and commitment steps
+- Multiple frontend files - Updated API_BASE from port 3001 to 3002
+
+### Commits This Session
+- `a738988` - feat: Add free tier limits and onboarding enhancements
+
+### Skipped Features
+- Feature #338 (Google OAuth) - Returns NOT_IMPLEMENTED, requires Google credentials
+
+### Notes for Next Session
+- Progress at 76.9% (319/415)
+- Continue with remaining Phase 2 features
+- API server running on port 3002
+- Frontend running on port 5173
+
+---
+
 ## Session 18 - January 12, 2026
 
 ### Summary
