@@ -9,6 +9,7 @@ import { useSessionStore } from '../stores/sessionStore';
 interface CommitmentData {
   date: string;
   targetMinutes: number;
+  baseTargetMinutes: number;
   currentMinutes: number;
   progress: number;
   commitmentMet: boolean;
@@ -89,15 +90,22 @@ export default function Dashboard() {
         {/* Daily Commitment Widget */}
         <Card className="md:col-span-2 lg:col-span-1">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="font-heading text-xl font-bold text-text">
                 Today's Commitment
               </h2>
-              {commitment?.vacationMode && (
-                <span className="px-2 py-1 text-sm bg-secondary/20 border-2 border-border font-heading">
-                  Vacation Mode
-                </span>
-              )}
+              <div className="flex gap-2">
+                {commitment?.busyWeekMode && (
+                  <span className="px-2 py-1 text-sm bg-primary/30 border-2 border-border font-heading">
+                    Busy Week
+                  </span>
+                )}
+                {commitment?.vacationMode && (
+                  <span className="px-2 py-1 text-sm bg-secondary/20 border-2 border-border font-heading">
+                    Vacation Mode
+                  </span>
+                )}
+              </div>
             </div>
 
             {loading ? (

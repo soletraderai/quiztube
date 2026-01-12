@@ -177,6 +177,96 @@ export default function Settings() {
     currentPeriodEnd: string | null;
   }>({ cancelAtPeriodEnd: false, currentPeriodEnd: null });
 
+  // Commitment mode states
+  const [busyWeekMode, setBusyWeekMode] = useState(false);
+  const [vacationMode, setVacationMode] = useState(false);
+  const [isTogglingMode, setIsTogglingMode] = useState(false);
+
+  // Fetch commitment mode status
+  useEffect(() => {
+    const fetchCommitmentStatus = async () => {
+      if (!isAuthenticated()) return;
+
+      try {
+        const { accessToken } = useAuthStore.getState();
+        const response = await fetch(`${API_BASE}/commitment/today`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setBusyWeekMode(data.busyWeekMode || false);
+          setVacationMode(data.vacationMode || false);
+        }
+      } catch (err) {
+        console.error('Failed to fetch commitment status:', err);
+      }
+    };
+
+    fetchCommitmentStatus();
+  }, [isAuthenticated]);
+
+  // Toggle busy week mode
+  const handleToggleBusyWeek = async () => {
+    setIsTogglingMode(true);
+    try {
+      const { accessToken } = useAuthStore.getState();
+      const response = await fetch(`${API_BASE}/commitment/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ busyWeekMode: !busyWeekMode }),
+      });
+
+      if (response.ok) {
+        setBusyWeekMode(!busyWeekMode);
+        setToast({
+          message: !busyWeekMode ? 'Busy week mode enabled - target reduced by 50%' : 'Busy week mode disabled',
+          type: 'success',
+        });
+      }
+    } catch (err) {
+      setToast({ message: 'Failed to update busy week mode', type: 'error' });
+    } finally {
+      setIsTogglingMode(false);
+    }
+  };
+
+  // Toggle vacation mode
+  const handleToggleVacation = async () => {
+    setIsTogglingMode(true);
+    try {
+      const { accessToken } = useAuthStore.getState();
+      const response = await fetch(`${API_BASE}/commitment/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ vacationMode: !vacationMode }),
+      });
+
+      if (response.ok) {
+        setVacationMode(!vacationMode);
+        setToast({
+          message: !vacationMode ? 'Vacation mode enabled - tracking paused' : 'Vacation mode disabled',
+          type: 'success',
+        });
+      }
+    } catch (err) {
+      setToast({ message: 'Failed to update vacation mode', type: 'error' });
+    } finally {
+      setIsTogglingMode(false);
+    }
+  };
+
   // Fetch subscription status
   useEffect(() => {
     const fetchSubscriptionStatus = async () => {
@@ -876,6 +966,62 @@ export default function Settings() {
       {isAuthenticated() && (
         <Card className="mb-6">
           <h2 className="font-heading text-xl font-bold text-text mb-4">Daily Commitment</h2>
+
+          {/* Busy Week Mode / Vacation Mode Toggles */}
+          <div className="mb-6 p-4 bg-surface/50 border-2 border-border rounded">
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Busy Week Mode */}
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <p className="font-heading font-semibold text-text">Busy Week Mode</p>
+                  <p className="text-sm text-text/60">Reduce daily target by 50%</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={busyWeekMode}
+                  onClick={handleToggleBusyWeek}
+                  disabled={isTogglingMode}
+                  className={`relative w-12 h-6 border-2 border-border transition-colors ${
+                    busyWeekMode ? 'bg-primary' : 'bg-surface'
+                  }`}
+                  aria-label="Toggle busy week mode"
+                >
+                  <span
+                    className={`absolute top-0.5 w-4 h-4 bg-text border border-border transition-transform ${
+                      busyWeekMode ? 'translate-x-6' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Vacation Mode */}
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <p className="font-heading font-semibold text-text">Vacation Mode</p>
+                  <p className="text-sm text-text/60">Pause tracking completely</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={vacationMode}
+                  onClick={handleToggleVacation}
+                  disabled={isTogglingMode}
+                  className={`relative w-12 h-6 border-2 border-border transition-colors ${
+                    vacationMode ? 'bg-secondary' : 'bg-surface'
+                  }`}
+                  aria-label="Toggle vacation mode"
+                >
+                  <span
+                    className={`absolute top-0.5 w-4 h-4 bg-text border border-border transition-transform ${
+                      vacationMode ? 'translate-x-6' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <CommitmentCalendar />
         </Card>
       )}

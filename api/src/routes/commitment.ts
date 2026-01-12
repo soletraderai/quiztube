@@ -24,20 +24,27 @@ router.get('/today', async (req: AuthenticatedRequest, res: Response, next: Next
       }),
     ]);
 
-    const targetMinutes = preferences?.dailyCommitmentMinutes || 15;
+    const baseTargetMinutes = preferences?.dailyCommitmentMinutes || 15;
+    const busyWeekMode = record?.busyWeekMode || false;
+    const vacationMode = record?.vacationMode || false;
+
+    // Reduce target by 50% when in busy week mode
+    const targetMinutes = busyWeekMode ? Math.ceil(baseTargetMinutes / 2) : baseTargetMinutes;
+
     const currentMinutes = record?.timeSpentMinutes || 0;
     const commitmentMet = record?.commitmentMet || false;
 
     res.json({
       date: today.toISOString().split('T')[0],
       targetMinutes,
+      baseTargetMinutes,
       currentMinutes,
       progress: Math.min(100, (currentMinutes / targetMinutes) * 100),
       commitmentMet,
       questionsAnswered: record?.questionsAnswered || 0,
       sessionsCompleted: record?.sessionsCompleted || 0,
-      busyWeekMode: record?.busyWeekMode || false,
-      vacationMode: record?.vacationMode || false,
+      busyWeekMode,
+      vacationMode,
     });
   } catch (error) {
     next(error);
