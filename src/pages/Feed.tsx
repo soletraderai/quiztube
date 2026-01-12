@@ -23,6 +23,11 @@ interface FeedData {
   feed: any[];
 }
 
+interface SearchResult {
+  channelId: string;
+  channelName: string;
+}
+
 const API_BASE = 'http://localhost:3001/api';
 
 export default function Feed() {
@@ -30,6 +35,12 @@ export default function Feed() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const navigate = useNavigate();
   const { accessToken, isAuthenticated } = useAuthStore();
@@ -89,6 +100,61 @@ export default function Feed() {
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Failed to unfollow channel',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const response = await fetch(`${API_BASE}/channels/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const results = await response.json();
+        setSearchResults(results);
+      }
+    } catch (err) {
+      console.error('Search failed:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleFollowFromSearch = async (channel: SearchResult) => {
+    try {
+      const response = await fetch(`${API_BASE}/channels/${channel.channelId}/follow`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          channelName: channel.channelName,
+          channelThumbnail: null,
+        }),
+      });
+
+      if (response.ok) {
+        setToast({ message: `Now following ${channel.channelName}`, type: 'success' });
+        setSearchResults(prev => prev.filter(r => r.channelId !== channel.channelId));
+        fetchFeed(); // Refresh the feed
+      }
+    } catch (err) {
+      setToast({
+        message: 'Failed to follow channel',
         type: 'error',
       });
     }
@@ -155,6 +221,85 @@ export default function Feed() {
             : 'Follow channels to see their videos here'}
         </p>
       </div>
+
+      {/* Channel Search Section */}
+      <Card>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-xl font-bold text-text">Find Channels to Follow</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSearch(!showSearch)}
+            >
+              {showSearch ? 'Hide Search' : 'Show Search'}
+            </Button>
+          </div>
+
+          {showSearch && (
+            <div className="space-y-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search channels from your sessions..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full px-4 py-3 bg-surface border-3 border-border font-body text-text placeholder:text-text/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {searching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-text/70">{searchResults.length} channel{searchResults.length !== 1 ? 's' : ''} found</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {searchResults.map((result) => (
+                      <div
+                        key={result.channelId}
+                        className="flex items-center justify-between p-3 bg-surface border-2 border-border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full border-2 border-border bg-secondary/20 flex items-center justify-center">
+                            <span className="font-heading font-bold text-text">
+                              {result.channelName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="font-heading font-semibold text-text truncate">
+                            {result.channelName}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleFollowFromSearch(result)}
+                        >
+                          Follow
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {searchQuery && searchResults.length === 0 && !searching && (
+                <p className="text-center text-text/60 py-4">
+                  No channels found matching "{searchQuery}". Try a different search or complete more learning sessions.
+                </p>
+              )}
+
+              {!searchQuery && (
+                <p className="text-center text-text/60 py-4">
+                  Search for channels from videos you've watched to follow them.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Followed Channels Section */}
       {hasFollowedChannels && (

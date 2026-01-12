@@ -65,6 +65,50 @@ router.delete('/:channelId/unfollow', async (req: AuthenticatedRequest, res: Res
   }
 });
 
+// GET /api/channels/search
+router.get('/search', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const query = (req.query.q as string || '').toLowerCase().trim();
+
+    // Get all channels from user's sessions
+    const sessions = await prisma.session.findMany({
+      where: { userId: req.user!.id },
+      select: {
+        channelId: true,
+        channelName: true,
+      },
+      distinct: ['channelId'],
+    });
+
+    // Get followed channels
+    const followedChannels = await prisma.followedChannel.findMany({
+      where: { userId: req.user!.id },
+      select: { channelId: true },
+    });
+
+    const followedIds = new Set(followedChannels.map(c => c.channelId));
+
+    // Filter channels: match search query and not already followed
+    const results = sessions
+      .filter(s => s.channelId && s.channelName)
+      .filter(s => !followedIds.has(s.channelId!))
+      .filter(s => !query || s.channelName!.toLowerCase().includes(query))
+      .map(s => ({
+        channelId: s.channelId,
+        channelName: s.channelName,
+      }));
+
+    // Remove duplicates by channelId
+    const uniqueResults = Array.from(
+      new Map(results.map(r => [r.channelId, r])).values()
+    );
+
+    res.json(uniqueResults);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/channels/feed
 router.get('/feed', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
