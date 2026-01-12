@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
@@ -18,14 +18,34 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const autoStartTriggered = useRef(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { isConfigured } = useSettingsStore();
   const { library, createSession: saveSession } = useSessionStore();
   const isOnline = useOnlineStatus();
 
   // Get recent sessions (last 5)
   const recentSessions = library.sessions.slice(0, 5);
+
+  // Handle auto-start from Feed navigation
+  useEffect(() => {
+    const state = location.state as { videoUrl?: string; autoStart?: boolean } | null;
+    if (state?.videoUrl && state?.autoStart && !autoStartTriggered.current) {
+      autoStartTriggered.current = true;
+      setUrl(state.videoUrl);
+      // Clear the location state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+      // Auto-submit after a short delay to let the UI update
+      setTimeout(() => {
+        const submitButton = document.querySelector('[data-submit-button]') as HTMLButtonElement;
+        if (submitButton) {
+          submitButton.click();
+        }
+      }, 100);
+    }
+  }, [location.state]);
 
   const validateYouTubeUrl = (url: string): boolean => {
     const trimmedUrl = url.trim();
@@ -177,6 +197,7 @@ export default function Home() {
             className="w-full"
             loading={loading}
             disabled={loading}
+            data-submit-button
           >
             {loading ? 'Processing...' : 'Start Learning'}
           </Button>

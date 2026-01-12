@@ -17,10 +17,21 @@ interface FollowedChannel {
   followedAt: string;
 }
 
+interface FeedVideo {
+  videoId: string;
+  videoUrl: string;
+  videoTitle: string;
+  videoThumbnail: string | null;
+  videoDuration: number;
+  channelId: string;
+  channelName: string;
+  createdAt: string;
+}
+
 interface FeedData {
   channels: FollowedChannel[];
   watchedVideoIds: string[];
-  feed: any[];
+  feed: FeedVideo[];
 }
 
 interface SearchResult {
@@ -364,6 +375,55 @@ export default function Feed() {
                   </Button>
                 </div>
               </Card>
+              </StaggeredItem>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Feed Videos - Videos from followed channels to start sessions */}
+      {feedData && feedData.feed.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="font-heading text-2xl font-bold text-text">
+            Videos from Your Channels
+          </h2>
+          <p className="text-text/70">Click a video to start learning - no URL needed!</p>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {feedData.feed.map((video, index) => (
+              <StaggeredItem key={video.videoId} index={index} baseDelay={100} staggerDelay={75}>
+                <Card
+                  hoverable
+                  className="cursor-pointer h-full"
+                  onClick={() => {
+                    // Navigate to home with the video URL pre-filled and auto-start
+                    navigate('/', { state: { videoUrl: video.videoUrl, autoStart: true } });
+                  }}
+                >
+                  {video.videoThumbnail ? (
+                    <img
+                      src={video.videoThumbnail}
+                      alt={video.videoTitle}
+                      className="w-full h-32 object-cover border-2 border-border mb-3"
+                    />
+                  ) : (
+                    <div className="w-full h-32 bg-surface border-2 border-border mb-3 flex items-center justify-center">
+                      <svg className="w-12 h-12 text-text/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  )}
+                  <h3 className="font-heading font-semibold text-text line-clamp-2 mb-2">
+                    {video.videoTitle}
+                  </h3>
+                  <p className="text-sm text-text/60">{video.channelName}</p>
+                  <div className="mt-3 pt-3 border-t-2 border-border/30">
+                    <Button size="sm" className="w-full">
+                      Start Learning
+                    </Button>
+                  </div>
+                </Card>
               </StaggeredItem>
             ))}
           </div>

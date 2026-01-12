@@ -118,8 +118,8 @@ router.get('/feed', async (req: AuthenticatedRequest, res: Response, next: NextF
 
     const channelIds = followedChannels.map(c => c.channelId);
 
-    // Get sessions from followed channels
-    const sessions = await prisma.session.findMany({
+    // Get sessions from followed channels (for tracking watched videos)
+    const userSessions = await prisma.session.findMany({
       where: {
         channelId: { in: channelIds },
         userId: req.user!.id,
@@ -127,13 +127,37 @@ router.get('/feed', async (req: AuthenticatedRequest, res: Response, next: NextF
       select: { videoId: true },
     });
 
-    const watchedVideoIds = sessions.map(s => s.videoId);
+    const watchedVideoIds = userSessions.map(s => s.videoId);
 
-    // Return placeholder feed - in production this would fetch from YouTube API
+    // Get recent videos from followed channels to show in feed
+    // These are videos from sessions that can be clicked to start a new learning session
+    const feedVideos = await prisma.session.findMany({
+      where: {
+        channelId: { in: channelIds.length > 0 ? channelIds : ['_no_channels_'] },
+      },
+      select: {
+        videoId: true,
+        videoUrl: true,
+        videoTitle: true,
+        videoThumbnail: true,
+        videoDuration: true,
+        channelId: true,
+        channelName: true,
+        createdAt: true,
+      },
+      distinct: ['videoId'],
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    // Filter out videos the user has already watched
+    const userWatchedSet = new Set(watchedVideoIds);
+    const unwatchedFeed = feedVideos.filter(v => !userWatchedSet.has(v.videoId));
+
     res.json({
       channels: followedChannels,
       watchedVideoIds,
-      feed: [], // Would be populated with videos from YouTube API
+      feed: unwatchedFeed, // Videos from followed channels the user hasn't watched
     });
   } catch (error) {
     next(error);
