@@ -1,11 +1,63 @@
 # Teachy Phase 2 - Progress Report
 
+## Session 12 - January 12, 2026
+
+### Summary
+Implemented CommitmentCalendar component with neutral missed day styling, verified subscription upgrade prompts for free users, and tested checkout flow. Progress increased from 281/415 to 284/415 (68.4%).
+
+### Current Progress
+- **Passing**: 284/415 features (68.4%)
+- **Phase**: 2
+
+### Session 12 Implemented Features
+
+#### 1. Neutral Missed Day Styling - Feature #491
+- Created CommitmentCalendar component with week/month views
+- Missed days styled with neutral grey color (NOT red/alarming)
+- Small grey dots for missed days instead of X marks
+- Green checkmarks for days where goals were met
+- Vacation mode shows airplane emoji
+- Legend for clarity at bottom
+- Integrated into Settings page under "Daily Commitment" section
+
+#### 2. Subscription Upgrade Prompt - Feature #492
+- Free users see PRO badges on locked tutor personalities
+- Upgrade to Pro section in Settings Subscription area
+- Non-intrusive prompts (badges, not popups)
+- Free users can still use available features
+
+#### 3. Checkout Flow Works - Feature #494
+- Pricing page shows Free and Pro plans
+- Monthly/Yearly toggle available
+- Click Upgrade to Pro initiates checkout
+- Dev mode bypasses Stripe for testing
+- Success page shows Pro confirmation
+- User upgraded from FREE to PRO after checkout
+- All Pro features unlocked (tutor personalities, etc.)
+
+### Files Created
+- src/components/ui/CommitmentCalendar.tsx - Commitment tracking calendar with neutral styling
+
+### Files Modified
+- src/pages/Settings.tsx - Added CommitmentCalendar import and Daily Commitment section
+
+### Commits This Session
+- `59fc2b9` - Add CommitmentCalendar component with neutral missed day styling
+
+### Notes for Next Session
+- Continue with remaining Phase 2 features
+- Progress is at 68.4% (284/415)
+- API server running on port 3001
+- Frontend running on port 5173
+
+---
+
 ## Session 11 - January 12, 2026
 
 ### Summary
 Implemented localStorage migration features and verified auth/subscription guards. Added MigrationPrompt component that prompts users to migrate local sessions to cloud on login. Migration handles partial/corrupted data gracefully. Progress increased from 163/415 to 169/415 (40.7%).
 
-### Current Progress
+### Previous Progress
 - **Passing**: 169/415 features (40.7%)
 - **Phase**: 2
 
