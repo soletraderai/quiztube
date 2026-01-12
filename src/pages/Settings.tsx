@@ -181,14 +181,18 @@ export default function Settings() {
   const [busyWeekMode, setBusyWeekMode] = useState(false);
   const [vacationMode, setVacationMode] = useState(false);
   const [isTogglingMode, setIsTogglingMode] = useState(false);
+  const [dailyCommitmentMinutes, setDailyCommitmentMinutes] = useState(30);
+  const [isUpdatingCommitment, setIsUpdatingCommitment] = useState(false);
 
-  // Fetch commitment mode status
+  // Fetch commitment mode status and daily target
   useEffect(() => {
     const fetchCommitmentStatus = async () => {
       if (!isAuthenticated()) return;
 
       try {
         const { accessToken } = useAuthStore.getState();
+
+        // Fetch commitment status
         const response = await fetch(`${API_BASE}/commitment/today`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -200,6 +204,8 @@ export default function Settings() {
           const data = await response.json();
           setBusyWeekMode(data.busyWeekMode || false);
           setVacationMode(data.vacationMode || false);
+          // Use baseTargetMinutes which is the original (non-reduced) value
+          setDailyCommitmentMinutes(data.baseTargetMinutes || 30);
         }
       } catch (err) {
         console.error('Failed to fetch commitment status:', err);
@@ -208,6 +214,37 @@ export default function Settings() {
 
     fetchCommitmentStatus();
   }, [isAuthenticated]);
+
+  // Handle daily commitment change
+  const handleCommitmentChange = async (minutes: number) => {
+    setIsUpdatingCommitment(true);
+    try {
+      const { accessToken } = useAuthStore.getState();
+      const response = await fetch(`${API_BASE}/users/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ dailyCommitmentMinutes: minutes }),
+      });
+
+      if (response.ok) {
+        setDailyCommitmentMinutes(minutes);
+        setToast({
+          message: `Daily goal updated to ${minutes} minutes`,
+          type: 'success',
+        });
+      } else {
+        setToast({ message: 'Failed to update daily goal', type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: 'Failed to update daily goal', type: 'error' });
+    } finally {
+      setIsUpdatingCommitment(false);
+    }
+  };
 
   // Toggle busy week mode
   const handleToggleBusyWeek = async () => {
@@ -966,6 +1003,31 @@ export default function Settings() {
       {isAuthenticated() && (
         <Card className="mb-6">
           <h2 className="font-heading text-xl font-bold text-text mb-4">Daily Commitment</h2>
+
+          {/* Daily Goal Selector */}
+          <div className="mb-6 p-4 bg-surface/50 border-2 border-border rounded">
+            <div className="mb-2">
+              <p className="font-heading font-semibold text-text">Daily Learning Goal</p>
+              <p className="text-sm text-text/60 mb-3">How much time do you want to commit each day?</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[15, 30, 45, 60, 90].map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => handleCommitmentChange(minutes)}
+                  disabled={isUpdatingCommitment}
+                  className={`px-4 py-2 font-heading font-semibold border-2 border-border transition-all ${
+                    dailyCommitmentMinutes === minutes
+                      ? 'bg-primary shadow-brutal-sm'
+                      : 'bg-surface hover:bg-surface/80'
+                  } ${isUpdatingCommitment ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {minutes} min
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Busy Week Mode / Vacation Mode Toggles */}
           <div className="mb-6 p-4 bg-surface/50 border-2 border-border rounded">
