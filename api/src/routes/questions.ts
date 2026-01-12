@@ -5,6 +5,36 @@ import { AppError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
+// POST /api/questions - Create a new question
+router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { topicId, sessionId, questionText, correctAnswer, difficulty } = req.body;
+
+    // Verify the topic belongs to the user
+    const topic = await prisma.topic.findFirst({
+      where: { id: topicId, userId: req.user!.id },
+    });
+
+    if (!topic) {
+      throw new AppError(404, 'Topic not found', 'TOPIC_NOT_FOUND');
+    }
+
+    const question = await prisma.question.create({
+      data: {
+        topicId,
+        sessionId,
+        questionText,
+        correctAnswer,
+        difficulty: difficulty || 'MEDIUM',
+      },
+    });
+
+    res.status(201).json(question);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/questions/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

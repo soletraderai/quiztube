@@ -91,7 +91,7 @@ export default function Layout() {
               </div>
               <div className="flex items-center gap-2">
                 <Link
-                  to="/library"
+                  to="/review"
                   className="px-3 py-1 bg-primary border-2 border-border font-heading font-semibold text-sm hover:shadow-brutal transition-all"
                 >
                   Review Now

@@ -41,6 +41,59 @@ router.get('/due-for-review', async (req: AuthenticatedRequest, res: Response, n
   }
 });
 
+// GET /api/topics/quick-review - Get topics and questions for quick review session
+router.get('/quick-review', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    // Get topics due for review with their questions
+    const topics = await prisma.topic.findMany({
+      where: {
+        userId: req.user!.id,
+        nextReviewDate: { lte: new Date() },
+      },
+      include: {
+        questions: {
+          take: 2, // Limit to 2 questions per topic
+          orderBy: { createdAt: 'desc' },
+        },
+        session: {
+          select: {
+            videoTitle: true,
+            videoThumbnail: true,
+            channelName: true,
+          },
+        },
+      },
+      orderBy: { nextReviewDate: 'asc' },
+      take: 5, // Limit to 5 topics (5-10 questions total)
+    });
+
+    // Flatten to get review items (topic + question pairs)
+    const reviewItems = topics.flatMap((topic) =>
+      topic.questions.map((question) => ({
+        topicId: topic.id,
+        topicName: topic.name,
+        topicDescription: topic.description,
+        masteryLevel: topic.masteryLevel,
+        questionId: question.id,
+        questionText: question.questionText,
+        correctAnswer: question.correctAnswer,
+        difficulty: question.difficulty,
+        videoTitle: topic.session.videoTitle,
+        videoThumbnail: topic.session.videoThumbnail,
+        channelName: topic.session.channelName,
+      }))
+    ).slice(0, 10); // Limit to 10 questions max
+
+    res.json({
+      items: reviewItems,
+      totalQuestions: reviewItems.length,
+      estimatedMinutes: Math.min(5, Math.ceil(reviewItems.length * 0.5)), // ~30 seconds per question
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/topics/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

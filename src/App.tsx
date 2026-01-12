@@ -19,6 +19,7 @@ import EmailVerification from './pages/EmailVerification';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
+import ReviewSession from './pages/ReviewSession';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
             <Route path="library" element={<Library />} />
             <Route path="feed" element={<Feed />} />
             <Route path="goals" element={<Goals />} />
+            <Route path="review" element={<ReviewSession />} />
             <Route path="session/:sessionId/overview" element={<SessionOverview />} />
             <Route path="session/:sessionId/active" element={<ActiveSession />} />
             <Route path="session/:sessionId/notes" element={<SessionNotes />} />
