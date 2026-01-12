@@ -512,7 +512,7 @@ export default function Settings() {
     setDeletingAccount(true);
     try {
       const { accessToken, logout } = useAuthStore.getState();
-      const response = await fetch(`${API_BASE}/auth/delete-account`, {
+      const response = await fetch(`${API_BASE}/users/account`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,

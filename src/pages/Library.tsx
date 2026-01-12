@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import { StaggeredItem } from '../components/ui/StaggeredList';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAuthStore } from '../stores/authStore';
+import { useDebounce } from '../hooks/useDebounce';
 
 const ITEMS_PER_PAGE = 6; // 6 items for a 3-column grid layout
 
@@ -24,6 +25,8 @@ export default function Library() {
   }, [isAuthenticated, syncWithCloud]);
 
   const [search, setSearch] = useState(searchParams.get('search') || '');
+  // Debounce search input to avoid filtering on every keystroke
+  const debouncedSearch = useDebounce(search, 300);
   const [filterBookmarked, setFilterBookmarked] = useState(
     searchParams.get('bookmarked') === 'true'
   );
@@ -40,9 +43,9 @@ export default function Library() {
   const filteredSessions = useMemo(() => {
     let sessions = [...library.sessions];
 
-    // Apply search filter
-    if (search.trim()) {
-      const searchLower = search.toLowerCase().trim();
+    // Apply search filter (using debounced value)
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase().trim();
       sessions = sessions.filter(
         (session) =>
           session.video.title.toLowerCase().includes(searchLower) ||
@@ -88,7 +91,7 @@ export default function Library() {
     });
 
     return sessions;
-  }, [library.sessions, search, filterBookmarked, sortOrder, dateFrom, dateTo]);
+  }, [library.sessions, debouncedSearch, filterBookmarked, sortOrder, dateFrom, dateTo]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredSessions.length / ITEMS_PER_PAGE);
@@ -145,8 +148,18 @@ export default function Library() {
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
-    updateParams(value);
+    // URL params will be updated via the debouncedSearch effect below
   };
+
+  // Update URL params when debounced search changes
+  useEffect(() => {
+    // Only update URL if the debounced value differs from current URL param
+    const currentSearchParam = searchParams.get('search') || '';
+    if (debouncedSearch !== currentSearchParam) {
+      updateParams(debouncedSearch);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const handleBookmarkFilterToggle = () => {
     setFilterBookmarked(!filterBookmarked);
