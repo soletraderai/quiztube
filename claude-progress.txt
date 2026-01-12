@@ -3,10 +3,10 @@
 ## Session 15 - January 12, 2026
 
 ### Summary
-Continued Phase 2 implementation. Added collapsible Sources panel to ActiveSession page, verified commitment calendar week/month views. Progress increased from 293/415 to 299/415 (72.0%).
+Continued Phase 2 implementation. Added collapsible Sources panel to ActiveSession page, verified commitment calendar week/month views, source quality indicators, and goal auto-tracking. Progress increased from 293/415 to 301/415 (72.5%).
 
 ### Current Progress
-- **Passing**: 299/415 features (72.0%)
+- **Passing**: 301/415 features (72.5%)
 - **Phase**: 2
 
 ### Session 15 Implemented Features
@@ -43,6 +43,15 @@ Continued Phase 2 implementation. Added collapsible Sources panel to ActiveSessi
 #### 6. Commitment Consistency Percentage - Feature #485
 - Shows "X of Y days • Z% consistency" format
 - Updates based on calendar data
+
+#### 7. Source Quality Indicators - Feature #667
+- Sources show type badges as quality indicators
+- github and documentation = official/authoritative
+- article = community content
+
+#### 8. Goal Auto-Progress Tracking - Feature #680
+- Goals automatically track progress from sessions
+- Shows X/Y topics completed without manual input
 
 ### Files Modified
 - src/pages/ActiveSession.tsx - Added collapsible Sources panel with type icons
