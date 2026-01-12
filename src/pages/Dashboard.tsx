@@ -21,6 +21,15 @@ interface CommitmentData {
 
 const API_BASE = 'http://localhost:3002/api';
 
+type ChartView = 'week' | 'month';
+
+interface DayActivity {
+  date: Date;
+  dayLabel: string;
+  minutes: number;
+  sessions: number;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { accessToken, isAuthenticated } = useAuthStore();
@@ -28,9 +37,54 @@ export default function Dashboard() {
   const [commitment, setCommitment] = useState<CommitmentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartView, setChartView] = useState<ChartView>('week');
 
   // Get recent sessions (last 3)
   const recentSessions = library.sessions.slice(0, 3);
+
+  // Calculate activity data for chart
+  const getActivityData = (): DayActivity[] => {
+    const days = chartView === 'week' ? 7 : 30;
+    const data: DayActivity[] = [];
+    const now = new Date();
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      // Find sessions on this day
+      const sessionsOnDay = library.sessions.filter((s) => {
+        const sessionDate = new Date(s.createdAt);
+        return sessionDate >= date && sessionDate < nextDay;
+      });
+
+      // Calculate minutes (estimate 2 min per question)
+      const minutes = sessionsOnDay.reduce(
+        (acc, s) => acc + s.score.questionsAnswered * 2,
+        0
+      );
+
+      const dayLabel = chartView === 'week'
+        ? date.toLocaleDateString('en', { weekday: 'short' })
+        : date.getDate().toString();
+
+      data.push({
+        date,
+        dayLabel,
+        minutes,
+        sessions: sessionsOnDay.length,
+      });
+    }
+
+    return data;
+  };
+
+  const activityData = getActivityData();
+  const maxMinutes = Math.max(...activityData.map((d) => d.minutes), 1);
 
   useEffect(() => {
     const fetchCommitment = async () => {
@@ -204,15 +258,29 @@ export default function Dashboard() {
                 <span className="font-heading font-bold text-lg">{library.sessions.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-text/70">Topics Completed</span>
+                <span className="text-text/70">Time Invested</span>
                 <span className="font-heading font-bold text-lg">
-                  {library.sessions.reduce((acc, s) => acc + s.score.topicsCompleted, 0)}
+                  {formatTime(library.sessions.reduce((acc, s) => {
+                    // Estimate 2 minutes per question answered
+                    return acc + (s.score.questionsAnswered * 2);
+                  }, 0))}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-text/70">Questions Answered</span>
+                <span className="text-text/70">Topics Covered</span>
                 <span className="font-heading font-bold text-lg">
-                  {library.sessions.reduce((acc, s) => acc + s.score.questionsAnswered, 0)}
+                  {library.sessions.reduce((acc, s) => acc + s.topics.length, 0)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-text/70">Accuracy</span>
+                <span className="font-heading font-bold text-lg">
+                  {(() => {
+                    const totalAnswered = library.sessions.reduce((acc, s) => acc + s.score.questionsAnswered, 0);
+                    const totalCorrect = library.sessions.reduce((acc, s) => acc + (s.score.correctAnswers || 0), 0);
+                    if (totalAnswered === 0) return '—';
+                    return `${Math.round((totalCorrect / totalAnswered) * 100)}%`;
+                  })()}
                 </span>
               </div>
             </div>
@@ -248,6 +316,148 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {/* Activity Chart */}
+      <Card>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="font-heading text-xl font-bold text-text">
+              Activity
+            </h2>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setChartView('week')}
+                className={`px-3 py-1 text-sm font-heading border-2 border-border transition-all ${
+                  chartView === 'week'
+                    ? 'bg-primary shadow-brutal-sm'
+                    : 'bg-surface hover:bg-primary/30'
+                }`}
+              >
+                Week
+              </button>
+              <button
+                onClick={() => setChartView('month')}
+                className={`px-3 py-1 text-sm font-heading border-2 border-border transition-all ${
+                  chartView === 'month'
+                    ? 'bg-primary shadow-brutal-sm'
+                    : 'bg-surface hover:bg-primary/30'
+                }`}
+              >
+                Month
+              </button>
+            </div>
+          </div>
+
+          {/* Bar Chart */}
+          <div className="h-40 flex items-end justify-between gap-1">
+            {activityData.map((day, index) => (
+              <div
+                key={index}
+                className="flex-1 flex flex-col items-center gap-1"
+                title={`${day.minutes} min • ${day.sessions} session${day.sessions !== 1 ? 's' : ''}`}
+              >
+                <div
+                  className={`w-full border-2 border-border transition-all ${
+                    day.minutes > 0 ? 'bg-primary' : 'bg-border/20'
+                  }`}
+                  style={{
+                    height: `${Math.max((day.minutes / maxMinutes) * 100, day.minutes > 0 ? 10 : 4)}%`,
+                    minHeight: day.minutes > 0 ? '8px' : '4px',
+                  }}
+                />
+                <span className="text-xs text-text/60 font-heading">
+                  {chartView === 'week' ? day.dayLabel : (index % 5 === 0 || index === activityData.length - 1 ? day.dayLabel : '')}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart Legend */}
+          <div className="flex justify-between text-sm text-text/60">
+            <span>
+              Total: {formatTime(activityData.reduce((acc, d) => acc + d.minutes, 0))}
+            </span>
+            <span>
+              {activityData.filter((d) => d.sessions > 0).length} active day{activityData.filter((d) => d.sessions > 0).length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Topic Performance */}
+      {library.sessions.length > 0 && (
+        <Card>
+          <div className="space-y-4">
+            <h2 className="font-heading text-xl font-bold text-text">
+              Topic Performance
+            </h2>
+            <div className="space-y-3">
+              {(() => {
+                // Aggregate topic performance across all sessions
+                const topicStats: Record<string, { name: string; total: number; completed: number; questionsAnswered: number }> = {};
+
+                library.sessions.forEach((session) => {
+                  session.topics.forEach((topic) => {
+                    const key = topic.title.toLowerCase().slice(0, 30);
+                    if (!topicStats[key]) {
+                      topicStats[key] = { name: topic.title, total: 0, completed: 0, questionsAnswered: 0 };
+                    }
+                    topicStats[key].total += 1;
+                    if (topic.questions.every((q) => q.userAnswer)) {
+                      topicStats[key].completed += 1;
+                    }
+                    topicStats[key].questionsAnswered += topic.questions.filter((q) => q.userAnswer).length;
+                  });
+                });
+
+                // Sort by questions answered (engagement)
+                const sortedTopics = Object.values(topicStats)
+                  .sort((a, b) => b.questionsAnswered - a.questionsAnswered)
+                  .slice(0, 5);
+
+                if (sortedTopics.length === 0) {
+                  return (
+                    <p className="text-text/60 text-center py-4">
+                      Complete some sessions to see your topic performance
+                    </p>
+                  );
+                }
+
+                const maxQuestions = Math.max(...sortedTopics.map((t) => t.questionsAnswered), 1);
+
+                return sortedTopics.map((topic, index) => {
+                  const percentage = (topic.questionsAnswered / maxQuestions) * 100;
+                  const isStrength = percentage >= 80;
+
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-heading text-text truncate max-w-[60%]">
+                          {topic.name}
+                          {isStrength && (
+                            <span className="ml-2 px-2 py-0.5 text-xs bg-secondary/30 border border-border">
+                              Strength
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-sm text-text/60">
+                          {topic.questionsAnswered} questions
+                        </span>
+                      </div>
+                      <div className="h-2 bg-border/20 border border-border overflow-hidden">
+                        <div
+                          className={`h-full transition-all ${isStrength ? 'bg-secondary' : 'bg-primary'}`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Recent Sessions */}
       {recentSessions.length > 0 && (

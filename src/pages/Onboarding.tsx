@@ -129,19 +129,85 @@ const tutorPersonalities: {
   },
 ];
 
+const ONBOARDING_STORAGE_KEY = 'teachy-onboarding-progress';
+
+interface OnboardingProgress {
+  step: OnboardingStep;
+  selectedStyle: string;
+  selectedPersonality: TutorPersonality;
+  selectedLanguageVariant: LanguageVariant;
+  selectedCommitment: number;
+  preferredTime: string;
+  selectedDays: string[];
+}
+
+// Load saved progress from localStorage
+const loadOnboardingProgress = (): Partial<OnboardingProgress> => {
+  try {
+    const saved = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load onboarding progress:', e);
+  }
+  return {};
+};
+
+// Save progress to localStorage
+const saveOnboardingProgress = (progress: OnboardingProgress) => {
+  try {
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(progress));
+  } catch (e) {
+    console.warn('Failed to save onboarding progress:', e);
+  }
+};
+
+// Clear saved progress from localStorage
+const clearOnboardingProgress = () => {
+  try {
+    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+  } catch (e) {
+    console.warn('Failed to clear onboarding progress:', e);
+  }
+};
+
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, setUser } = useAuthStore();
   const { settings, setSettings } = useSettingsStore();
-  const [step, setStep] = useState<OnboardingStep>('welcome');
-  const [selectedStyle, setSelectedStyle] = useState(settings.learningStyle || 'visual');
+
+  // Load saved progress on mount
+  const savedProgress = loadOnboardingProgress();
+
+  const [step, setStep] = useState<OnboardingStep>(savedProgress.step || 'welcome');
+  const [selectedStyle, setSelectedStyle] = useState(savedProgress.selectedStyle || settings.learningStyle || 'visual');
   const [selectedPersonality, setSelectedPersonality] = useState<TutorPersonality>(
-    settings.tutorPersonality || 'COACH'
+    savedProgress.selectedPersonality || settings.tutorPersonality || 'COACH'
   );
-  const [selectedLanguageVariant, setSelectedLanguageVariant] = useState<LanguageVariant>('AMERICAN');
-  const [selectedCommitment, setSelectedCommitment] = useState(15);
-  const [preferredTime, setPreferredTime] = useState('09:00');
-  const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
+  const [selectedLanguageVariant, setSelectedLanguageVariant] = useState<LanguageVariant>(
+    savedProgress.selectedLanguageVariant || 'AMERICAN'
+  );
+  const [selectedCommitment, setSelectedCommitment] = useState(savedProgress.selectedCommitment || 15);
+  const [preferredTime, setPreferredTime] = useState(savedProgress.preferredTime || '09:00');
+  const [selectedDays, setSelectedDays] = useState<string[]>(
+    savedProgress.selectedDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+  );
+
+  // Save progress whenever state changes
+  useEffect(() => {
+    if (step !== 'complete') {
+      saveOnboardingProgress({
+        step,
+        selectedStyle,
+        selectedPersonality,
+        selectedLanguageVariant,
+        selectedCommitment,
+        preferredTime,
+        selectedDays,
+      });
+    }
+  }, [step, selectedStyle, selectedPersonality, selectedLanguageVariant, selectedCommitment, preferredTime, selectedDays]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -206,6 +272,8 @@ export default function Onboarding() {
       });
 
       if (response.ok) {
+        // Clear saved onboarding progress
+        clearOnboardingProgress();
         // Update user state
         if (user) {
           setUser({ ...user, onboardingCompleted: true });
@@ -214,6 +282,8 @@ export default function Onboarding() {
       }
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
+      // Clear saved onboarding progress even if API fails
+      clearOnboardingProgress();
       // Still navigate home even if API fails
       if (user) {
         setUser({ ...user, onboardingCompleted: true });
@@ -223,6 +293,8 @@ export default function Onboarding() {
   };
 
   const handleSkip = () => {
+    // Clear saved onboarding progress when skipping
+    clearOnboardingProgress();
     if (user) {
       setUser({ ...user, onboardingCompleted: true });
     }
