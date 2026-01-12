@@ -1,5 +1,69 @@
 # Teachy Phase 2 - Progress Report
 
+## Session 15 - January 12, 2026
+
+### Summary
+Continued Phase 2 implementation. Added collapsible Sources panel to ActiveSession page, verified commitment calendar week/month views. Progress increased from 293/415 to 299/415 (72.0%).
+
+### Current Progress
+- **Passing**: 299/415 features (72.0%)
+- **Phase**: 2
+
+### Session 15 Implemented Features
+
+#### 1. Source Attribution Panel - Feature #475
+- Added collapsible Sources panel to ActiveSession page
+- Shows source count in collapsed state: "Sources (N)"
+- Click to expand reveals all sources
+- Each source displays: title, type badge (github/documentation/article/other), snippet, external link
+- Source type icons with color coding
+
+#### 2. Source Panel Full Details - Feature #476
+- Expanded panel shows complete source information
+- Title, type badge, URL, brief description
+- All sources clickable to open external links
+
+#### 3. Source Panel Non-Intrusive - Feature #478
+- Sources panel collapsed by default
+- Can answer questions without expanding
+- Smooth expand/collapse animation
+
+#### 4. Commitment Calendar Week View - Feature #483
+- Calendar component in Settings page
+- Week view shows 7 days with day of week labels
+- Met days show checkmark, missed days show neutral grey dot
+- Vacation days show airplane emoji
+- Legend explains color coding
+
+#### 5. Commitment Calendar Month View - Feature #484
+- Month button switches to 30-day view
+- Shows full month of activity
+- Same styling as week view
+
+#### 6. Commitment Consistency Percentage - Feature #485
+- Shows "X of Y days • Z% consistency" format
+- Updates based on calendar data
+
+### Files Modified
+- src/pages/ActiveSession.tsx - Added collapsible Sources panel with type icons
+
+### Commits This Session
+- `ce6ab12` - Add collapsible Sources panel to ActiveSession page
+
+### Notes for Next Session
+- Progress at 72.0% (299/415)
+- Many features require complex infrastructure not yet implemented:
+  - Review sessions system
+  - Email functionality (prompts, replies, digest)
+  - Knowledge map visualization
+  - Code editor with execution
+  - Timed sessions
+  - Dashboard page
+- These features have been skipped to the end of the queue
+- Continue with remaining implementable features
+
+---
+
 ## Session 14 - January 12, 2026
 
 ### Summary
