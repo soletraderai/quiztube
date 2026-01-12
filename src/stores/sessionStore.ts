@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Session, Library, ProcessingState } from '../types';
 import { useAuthStore } from './authStore';
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3002/api';
 
 // Helper to get auth token
 const getAuthHeaders = () => {

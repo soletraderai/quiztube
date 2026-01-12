@@ -37,7 +37,7 @@ interface LearningModelData {
   };
 }
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3002/api';
 
 // Signal Toggle Component
 interface SignalToggleProps {
@@ -528,7 +528,7 @@ export default function Settings() {
 
     try {
       // Server-side validation fallback
-      const validationResponse = await fetch('http://localhost:3001/api/validate/settings', {
+      const validationResponse = await fetch('http://localhost:3002/api/validate/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

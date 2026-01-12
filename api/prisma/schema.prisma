@@ -22,6 +22,7 @@ model User {
   avatarUrl               String?   @map("avatar_url")
   emailVerified           Boolean   @default(false) @map("email_verified")
   emailVerificationToken  String?   @map("email_verification_token")
+  emailVerificationExpires DateTime? @map("email_verification_expires")
   passwordResetToken      String?   @map("password_reset_token")
   passwordResetExpires    DateTime? @map("password_reset_expires")
   googleId                String?   @unique @map("google_id")

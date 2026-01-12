@@ -15,7 +15,7 @@ interface CalendarData {
   totalDays: number;
 }
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3002/api';
 
 export default function CommitmentCalendar() {
   const [view, setView] = useState<'week' | 'month'>('week');

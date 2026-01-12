@@ -4,7 +4,7 @@
  */
 import { useAuthStore, authApi } from '../stores/authStore';
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3002/api';
 
 // Flag to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;

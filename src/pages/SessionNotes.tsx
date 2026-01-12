@@ -5,7 +5,7 @@ import Card from '../components/ui/Card';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAuthStore } from '../stores/authStore';
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3002/api';
 
 export default function SessionNotes() {
   const { sessionId } = useParams();

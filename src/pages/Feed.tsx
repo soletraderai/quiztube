@@ -39,7 +39,7 @@ interface SearchResult {
   channelName: string;
 }
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = 'http://localhost:3002/api';
 
 export default function Feed() {
   const [feedData, setFeedData] = useState<FeedData | null>(null);

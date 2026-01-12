@@ -74,6 +74,34 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
       sessionData,
     } = req.body;
 
+    // Check session limit for FREE tier users
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId: req.user!.id },
+    });
+
+    if (!subscription || subscription.tier === 'FREE') {
+      // Count sessions created this month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const sessionsThisMonth = await prisma.session.count({
+        where: {
+          userId: req.user!.id,
+          createdAt: { gte: startOfMonth },
+        },
+      });
+
+      const FREE_TIER_SESSION_LIMIT = 3;
+      if (sessionsThisMonth >= FREE_TIER_SESSION_LIMIT) {
+        throw new AppError(
+          402,
+          'Free tier limited to 3 sessions per month. Upgrade to Pro for unlimited sessions.',
+          'SESSION_LIMIT_REACHED'
+        );
+      }
+    }
+
     const session = await prisma.session.create({
       data: {
         userId: req.user!.id,

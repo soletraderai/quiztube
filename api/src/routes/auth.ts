@@ -69,8 +69,9 @@ router.post('/signup', authRateLimit, async (req: Request, res: Response, next: 
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Generate verification token
+    // Generate verification token with 24-hour expiration
     const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Create user with preferences and subscription
     const user = await prisma.user.create({
@@ -79,6 +80,7 @@ router.post('/signup', authRateLimit, async (req: Request, res: Response, next: 
         passwordHash,
         displayName,
         emailVerificationToken,
+        emailVerificationExpires,
         preferences: {
           create: {}, // Use defaults
         },
@@ -288,7 +290,12 @@ router.get('/verify-email/:token', async (req: Request, res: Response, next: Nex
     });
 
     if (!user) {
-      throw new AppError(400, 'Invalid or expired verification token', 'INVALID_TOKEN');
+      throw new AppError(400, 'Invalid verification token', 'INVALID_TOKEN');
+    }
+
+    // Check if token has expired (24-hour validity)
+    if (user.emailVerificationExpires && new Date() > user.emailVerificationExpires) {
+      throw new AppError(400, 'Verification token has expired. Please request a new verification email.', 'TOKEN_EXPIRED');
     }
 
     await prisma.user.update({
@@ -296,10 +303,45 @@ router.get('/verify-email/:token', async (req: Request, res: Response, next: Nex
       data: {
         emailVerified: true,
         emailVerificationToken: null,
+        emailVerificationExpires: null,
       },
     });
 
     res.json({ message: 'Email verified successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/resend-verification
+router.post('/resend-verification', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      throw new AppError(400, 'Email is required', 'EMAIL_REQUIRED');
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always return success to prevent email enumeration
+    if (user && !user.emailVerified) {
+      // Generate new verification token with 24-hour expiration
+      const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+      const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken,
+          emailVerificationExpires,
+        },
+      });
+
+      await sendVerificationEmail(email, emailVerificationToken);
+    }
+
+    res.json({ message: 'If an unverified account exists, a verification email has been sent' });
   } catch (error) {
     next(error);
   }

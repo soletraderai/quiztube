@@ -6,7 +6,52 @@ import { useAuthStore } from '../stores/authStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { TutorPersonality } from '../types';
 
-type OnboardingStep = 'welcome' | 'learning-style' | 'personality' | 'complete';
+type OnboardingStep = 'welcome' | 'learning-style' | 'personality' | 'language-variant' | 'commitment' | 'complete';
+
+type LanguageVariant = 'BRITISH' | 'AMERICAN' | 'AUSTRALIAN';
+
+const commitmentLevels = [
+  { minutes: 5, label: '5 minutes', description: 'Quick daily check-in' },
+  { minutes: 15, label: '15 minutes', description: 'Focused learning session' },
+  { minutes: 30, label: '30 minutes', description: 'Deep dive learning' },
+  { minutes: 45, label: '45 minutes', description: 'Comprehensive study' },
+];
+
+const weekDays = [
+  { id: 'Mon', label: 'M' },
+  { id: 'Tue', label: 'T' },
+  { id: 'Wed', label: 'W' },
+  { id: 'Thu', label: 'T' },
+  { id: 'Fri', label: 'F' },
+  { id: 'Sat', label: 'S' },
+  { id: 'Sun', label: 'S' },
+];
+
+const languageVariants: {
+  id: LanguageVariant;
+  label: string;
+  description: string;
+  example: string;
+}[] = [
+  {
+    id: 'BRITISH',
+    label: 'British English',
+    description: 'UK spelling and expressions',
+    example: '"Colour", "Behaviour", "Organisation"',
+  },
+  {
+    id: 'AMERICAN',
+    label: 'American English',
+    description: 'US spelling and expressions',
+    example: '"Color", "Behavior", "Organization"',
+  },
+  {
+    id: 'AUSTRALIAN',
+    label: 'Australian English',
+    description: 'Australian spelling and expressions',
+    example: '"Colour", "Behaviour", with local idioms',
+  },
+];
 
 const learningStyles = [
   {
@@ -93,6 +138,10 @@ export default function Onboarding() {
   const [selectedPersonality, setSelectedPersonality] = useState<TutorPersonality>(
     settings.tutorPersonality || 'COACH'
   );
+  const [selectedLanguageVariant, setSelectedLanguageVariant] = useState<LanguageVariant>('AMERICAN');
+  const [selectedCommitment, setSelectedCommitment] = useState(15);
+  const [preferredTime, setPreferredTime] = useState('09:00');
+  const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -116,14 +165,30 @@ export default function Onboarding() {
       setStep('personality');
     } else if (step === 'personality') {
       setSettings({ tutorPersonality: selectedPersonality });
+      setStep('language-variant');
+    } else if (step === 'language-variant') {
+      setSettings({ languageVariant: selectedLanguageVariant });
+      setStep('commitment');
+    } else if (step === 'commitment') {
+      setSettings({
+        dailyCommitment: selectedCommitment,
+        preferredTime: preferredTime,
+        learningDays: selectedDays,
+      });
       setStep('complete');
     }
+  };
+
+  const toggleDay = (dayId: string) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId]
+    );
   };
 
   const handleComplete = async () => {
     try {
       const { accessToken } = useAuthStore.getState();
-      const response = await fetch('http://localhost:3001/api/users/complete-onboarding', {
+      const response = await fetch('http://localhost:3002/api/users/complete-onboarding', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,6 +198,10 @@ export default function Onboarding() {
         body: JSON.stringify({
           learningStyle: selectedStyle,
           tutorPersonality: selectedPersonality,
+          languageVariant: selectedLanguageVariant,
+          dailyCommitmentMinutes: selectedCommitment,
+          preferredTime: preferredTime,
+          preferredDays: selectedDays,
         }),
       });
 
@@ -170,14 +239,14 @@ export default function Onboarding() {
         {/* Progress indicator */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            {['welcome', 'learning-style', 'personality', 'complete'].map((s, i) => (
+            {['welcome', 'learning-style', 'personality', 'language-variant', 'commitment', 'complete'].map((s, i) => (
               <div key={s} className="flex items-center">
                 <div
                   className={`w-3 h-3 border-2 border-border ${
-                    step === s ? 'bg-primary' : i < ['welcome', 'learning-style', 'personality', 'complete'].indexOf(step) ? 'bg-secondary' : 'bg-surface'
+                    step === s ? 'bg-primary' : i < ['welcome', 'learning-style', 'personality', 'language-variant', 'commitment', 'complete'].indexOf(step) ? 'bg-secondary' : 'bg-surface'
                   }`}
                 />
-                {i < 3 && <div className="w-8 h-0.5 bg-border" />}
+                {i < 5 && <div className="w-6 h-0.5 bg-border" />}
               </div>
             ))}
           </div>
@@ -296,6 +365,125 @@ export default function Onboarding() {
           </Card>
         )}
 
+        {/* Language Variant Step */}
+        {step === 'language-variant' && (
+          <Card className="p-8">
+            <div className="text-center mb-6">
+              <h2 className="font-heading text-2xl font-bold text-text mb-2">
+                Choose your language variant
+              </h2>
+              <p className="text-text/70">
+                Select which English variant you prefer for spelling and expressions.
+              </p>
+            </div>
+
+            <div className="space-y-4 mb-8">
+              {languageVariants.map((variant) => (
+                <button
+                  key={variant.id}
+                  onClick={() => setSelectedLanguageVariant(variant.id)}
+                  className={`w-full p-4 border-3 border-border text-left transition-all ${
+                    selectedLanguageVariant === variant.id
+                      ? 'bg-primary shadow-brutal'
+                      : 'bg-surface hover:bg-primary/30'
+                  }`}
+                >
+                  <h3 className="font-heading font-bold text-text">{variant.label}</h3>
+                  <p className="text-sm text-text/70 mb-2">{variant.description}</p>
+                  <p className="text-xs text-text/50 italic">{variant.example}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-4">
+              <Button variant="ghost" onClick={() => setStep('personality')}>
+                Back
+              </Button>
+              <Button onClick={handleContinue} className="flex-1">
+                Continue
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Commitment Step */}
+        {step === 'commitment' && (
+          <Card className="p-8">
+            <div className="text-center mb-6">
+              <h2 className="font-heading text-2xl font-bold text-text mb-2">
+                Set your daily commitment
+              </h2>
+              <p className="text-text/70">
+                How much time can you dedicate to learning each day?
+              </p>
+            </div>
+
+            {/* Commitment Level */}
+            <div className="mb-6">
+              <h3 className="font-heading font-bold text-text mb-3">Daily learning time</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {commitmentLevels.map((level) => (
+                  <button
+                    key={level.minutes}
+                    onClick={() => setSelectedCommitment(level.minutes)}
+                    className={`p-3 border-3 border-border text-left transition-all ${
+                      selectedCommitment === level.minutes
+                        ? 'bg-primary shadow-brutal'
+                        : 'bg-surface hover:bg-primary/30'
+                    }`}
+                  >
+                    <span className="font-heading font-bold text-text">{level.label}</span>
+                    <p className="text-xs text-text/60">{level.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preferred Time */}
+            <div className="mb-6">
+              <h3 className="font-heading font-bold text-text mb-3">Preferred learning time</h3>
+              <input
+                type="time"
+                value={preferredTime}
+                onChange={(e) => setPreferredTime(e.target.value)}
+                className="w-full p-3 border-3 border-border bg-surface text-text font-body focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            {/* Learning Days */}
+            <div className="mb-8">
+              <h3 className="font-heading font-bold text-text mb-3">Learning days</h3>
+              <div className="flex justify-center gap-2">
+                {weekDays.map((day, idx) => (
+                  <button
+                    key={day.id + idx}
+                    onClick={() => toggleDay(day.id)}
+                    className={`w-10 h-10 border-3 border-border font-bold transition-all ${
+                      selectedDays.includes(day.id)
+                        ? 'bg-primary shadow-brutal'
+                        : 'bg-surface hover:bg-primary/30'
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-text/60 text-center mt-2">
+                {selectedDays.length} days selected
+              </p>
+            </div>
+
+            <div className="flex gap-4">
+              <Button variant="ghost" onClick={() => setStep('language-variant')}>
+                Back
+              </Button>
+              <Button onClick={handleContinue} className="flex-1">
+                Continue
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* Complete Step */}
         {step === 'complete' && (
           <Card className="text-center p-8">
@@ -323,6 +511,20 @@ export default function Onboarding() {
                 <li>
                   <strong>Tutor:</strong>{' '}
                   {tutorPersonalities.find((p) => p.id === selectedPersonality)?.label}
+                </li>
+                <li>
+                  <strong>Language:</strong>{' '}
+                  {languageVariants.find((v) => v.id === selectedLanguageVariant)?.label}
+                </li>
+                <li>
+                  <strong>Daily Commitment:</strong>{' '}
+                  {commitmentLevels.find((c) => c.minutes === selectedCommitment)?.label}
+                </li>
+                <li>
+                  <strong>Preferred Time:</strong> {preferredTime}
+                </li>
+                <li>
+                  <strong>Learning Days:</strong> {selectedDays.join(', ')}
                 </li>
               </ul>
             </div>

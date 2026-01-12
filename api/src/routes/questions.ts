@@ -19,6 +19,27 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
       throw new AppError(404, 'Topic not found', 'TOPIC_NOT_FOUND');
     }
 
+    // Check question limit for FREE tier users
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId: req.user!.id },
+    });
+
+    if (!subscription || subscription.tier === 'FREE') {
+      // Count questions in this session
+      const questionsInSession = await prisma.question.count({
+        where: { sessionId },
+      });
+
+      const FREE_TIER_QUESTIONS_LIMIT = 10;
+      if (questionsInSession >= FREE_TIER_QUESTIONS_LIMIT) {
+        throw new AppError(
+          402,
+          'Free tier limited to 10 questions per session. Upgrade to Pro for unlimited questions.',
+          'QUESTION_LIMIT_REACHED'
+        );
+      }
+    }
+
     const question = await prisma.question.create({
       data: {
         topicId,
