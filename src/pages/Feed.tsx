@@ -42,6 +42,9 @@ export default function Feed() {
   const [searching, setSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
+  // Unfollow confirmation state
+  const [unfollowConfirm, setUnfollowConfirm] = useState<FollowedChannel | null>(null);
+
   const navigate = useNavigate();
   const { accessToken, isAuthenticated } = useAuthStore();
 
@@ -80,9 +83,15 @@ export default function Feed() {
     }
   };
 
-  const handleUnfollow = async (channelId: string) => {
+  const handleUnfollowClick = (channel: FollowedChannel) => {
+    setUnfollowConfirm(channel);
+  };
+
+  const handleUnfollowConfirm = async () => {
+    if (!unfollowConfirm) return;
+
     try {
-      const response = await fetch(`${API_BASE}/channels/${channelId}/unfollow`, {
+      const response = await fetch(`${API_BASE}/channels/${unfollowConfirm.channelId}/unfollow`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -96,13 +105,19 @@ export default function Feed() {
       }
 
       setToast({ message: 'Channel unfollowed', type: 'success' });
+      setUnfollowConfirm(null);
       fetchFeed(); // Refresh the feed
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Failed to unfollow channel',
         type: 'error',
       });
+      setUnfollowConfirm(null);
     }
+  };
+
+  const handleUnfollowCancel = () => {
+    setUnfollowConfirm(null);
   };
 
   const handleSearch = async (query: string) => {
@@ -343,7 +358,7 @@ export default function Feed() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => handleUnfollow(channel.channelId)}
+                    onClick={() => handleUnfollowClick(channel)}
                   >
                     Unfollow
                   </Button>
@@ -451,6 +466,61 @@ export default function Feed() {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* Unfollow Confirmation Modal */}
+      {unfollowConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full animate-in fade-in zoom-in duration-200">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full border-2 border-border bg-error/20 flex items-center justify-center">
+                  <svg
+                    className="w-6 h-6 text-error"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-heading text-xl font-bold text-text">
+                    Unfollow Channel?
+                  </h3>
+                  <p className="text-sm text-text/60">
+                    {unfollowConfirm.channelName}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-text/70">
+                Are you sure you want to unfollow this channel? You won't see their videos in your feed anymore.
+              </p>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={handleUnfollowCancel}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleUnfollowConfirm}
+                  className="bg-error/10 border-error text-error hover:bg-error/20"
+                >
+                  Yes, Unfollow
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
