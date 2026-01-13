@@ -436,7 +436,9 @@ export default function Goals() {
     }
   };
 
-  if (loading) {
+  // Only show loading skeleton if actually loading AND no error
+  // This prevents infinite loading state when backend is unavailable
+  if (loading && !error) {
     return (
       <div className="space-y-8">
         <div className="text-center space-y-4">
