@@ -20,8 +20,14 @@ async function isProxyAvailable(): Promise<boolean> {
 // Extract video ID from various YouTube URL formats
 export function extractVideoId(url: string): string | null {
   const patterns = [
+    // Standard watch URL, embedded URL, youtu.be short URL
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    // Watch URL with additional parameters
     /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+    // YouTube Shorts URLs
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    // Mobile URL (m.youtube.com)
+    /m\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
   ];
 
   for (const pattern of patterns) {
