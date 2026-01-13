@@ -196,6 +196,63 @@ Return JSON:
   }
 });
 
+// POST /api/ai/rephrase-question
+router.post('/rephrase-question', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const rateLimit = await aiRateLimit(req.user!.id, req.user!.tier);
+    if (!rateLimit.allowed) {
+      throw new AppError(429, 'AI rate limit exceeded', 'RATE_LIMITED');
+    }
+
+    const { originalQuestion, topicName, correctAnswer, difficulty } = req.body;
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    const prompt = `Rephrase this review question to test the same concept but with different wording.
+The goal is to prevent the user from memorizing the original answer word-for-word.
+
+Original question: ${originalQuestion}
+Topic: ${topicName}
+Difficulty: ${difficulty || 'MEDIUM'}
+Expected concepts: ${correctAnswer || 'N/A'}
+
+Requirements:
+1. Test the same underlying concept
+2. Use different phrasing and structure
+3. May ask from a different angle or perspective
+4. Keep the same difficulty level
+5. Should still be answerable with the same knowledge
+
+Return JSON:
+{
+  "rephrasedQuestion": "The new question text",
+  "questionAngle": "Brief description of how this question differs from the original"
+}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      // Fallback: return original question if AI fails
+      return res.json({
+        rephrasedQuestion: originalQuestion,
+        questionAngle: 'original',
+      });
+    }
+
+    res.json(JSON.parse(jsonMatch[0]));
+  } catch (error) {
+    // Fallback: return original question on error
+    console.error('Failed to rephrase question:', error);
+    res.json({
+      rephrasedQuestion: req.body.originalQuestion,
+      questionAngle: 'original',
+    });
+  }
+});
+
 // POST /api/ai/dig-deeper
 router.post('/dig-deeper', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

@@ -1,7 +1,57 @@
 import { Router, Response, NextFunction } from 'express';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../index.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Helper function to rephrase a question for review
+async function rephraseQuestionForReview(
+  originalQuestion: string,
+  topicName: string,
+  correctAnswer: string | null,
+  difficulty: string
+): Promise<{ rephrasedQuestion: string; isRephrased: boolean }> {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    const prompt = `Rephrase this review question to test the same concept but with different wording.
+The goal is to prevent the user from memorizing the original answer word-for-word.
+
+Original question: ${originalQuestion}
+Topic: ${topicName}
+Difficulty: ${difficulty || 'MEDIUM'}
+Expected concepts: ${correctAnswer || 'N/A'}
+
+Requirements:
+1. Test the same underlying concept
+2. Use different phrasing and structure
+3. May ask from a different angle or perspective
+4. Keep the same difficulty level
+5. Should still be answerable with the same knowledge
+
+Return ONLY valid JSON (no markdown code blocks):
+{"rephrasedQuestion": "The new question text"}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        rephrasedQuestion: parsed.rephrasedQuestion || originalQuestion,
+        isRephrased: true,
+      };
+    }
+    return { rephrasedQuestion: originalQuestion, isRephrased: false };
+  } catch (error) {
+    console.error('Failed to rephrase question:', error);
+    return { rephrasedQuestion: originalQuestion, isRephrased: false };
+  }
+}
 
 const router = Router();
 
@@ -98,21 +148,41 @@ router.get('/quick-review', async (req: AuthenticatedRequest, res: Response, nex
     });
 
     // Flatten to get review items (topic + question pairs)
-    const reviewItems = topics.flatMap((topic) =>
+    const baseReviewItems = topics.flatMap((topic) =>
       topic.questions.map((question) => ({
         topicId: topic.id,
         topicName: topic.name,
         topicDescription: topic.description,
         masteryLevel: topic.masteryLevel,
         questionId: question.id,
-        questionText: question.questionText,
+        originalQuestionText: question.questionText,
+        questionText: question.questionText, // Will be replaced with rephrased version
         correctAnswer: question.correctAnswer,
         difficulty: question.difficulty,
         videoTitle: topic.session.videoTitle,
         videoThumbnail: topic.session.videoThumbnail,
         channelName: topic.session.channelName,
+        isRephrased: false,
       }))
     ).slice(0, Math.min(10, remainingReviews)); // Limit to 10 questions max or remaining reviews
+
+    // Rephrase questions for review to prevent memorization
+    // Process in parallel for better performance
+    const reviewItems = await Promise.all(
+      baseReviewItems.map(async (item) => {
+        const { rephrasedQuestion, isRephrased } = await rephraseQuestionForReview(
+          item.originalQuestionText,
+          item.topicName,
+          item.correctAnswer,
+          item.difficulty
+        );
+        return {
+          ...item,
+          questionText: rephrasedQuestion,
+          isRephrased,
+        };
+      })
+    );
 
     res.json({
       items: reviewItems,

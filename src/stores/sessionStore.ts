@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Session, Library, ProcessingState } from '../types';
+import type { Session, Library, ProcessingState, CodeSnippet } from '../types';
 import { useAuthStore } from './authStore';
 
-const API_BASE = 'http://localhost:3002/api';
+const API_BASE = 'http://localhost:3001/api';
 
 // Helper to get auth token
 const getAuthHeaders = () => {
@@ -213,6 +213,10 @@ interface SessionState {
   // Score updates
   updateScore: (sessionId: string, updates: Partial<Session['score']>) => void;
 
+  // Code snippets
+  saveSnippet: (sessionId: string, snippet: Omit<CodeSnippet, 'id' | 'savedAt'>) => void;
+  deleteSnippet: (sessionId: string, snippetId: string) => void;
+
   // Cloud sync
   syncWithCloud: () => Promise<void>;
 
@@ -374,6 +378,74 @@ export const useSessionStore = create<SessionState>()(
                 }
               : state.currentSession,
         })),
+
+      saveSnippet: (sessionId, snippet) => {
+        const newSnippet: CodeSnippet = {
+          ...snippet,
+          id: `snippet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          savedAt: Date.now(),
+        };
+
+        set((state) => {
+          const updatedSessions = state.library.sessions.map((s) => {
+            if (s.id !== sessionId) return s;
+            const existingSnippets = s.savedSnippets || [];
+            return { ...s, savedSnippets: [...existingSnippets, newSnippet] };
+          });
+
+          const updatedCurrent =
+            state.currentSession?.id === sessionId
+              ? {
+                  ...state.currentSession,
+                  savedSnippets: [...(state.currentSession.savedSnippets || []), newSnippet],
+                }
+              : state.currentSession;
+
+          return {
+            library: { sessions: updatedSessions },
+            currentSession: updatedCurrent,
+          };
+        });
+
+        // Sync to cloud
+        const updatedSession = get().library.sessions.find(s => s.id === sessionId);
+        if (updatedSession) {
+          sessionApi.updateSession(updatedSession);
+        }
+      },
+
+      deleteSnippet: (sessionId, snippetId) => {
+        set((state) => {
+          const updatedSessions = state.library.sessions.map((s) => {
+            if (s.id !== sessionId) return s;
+            return {
+              ...s,
+              savedSnippets: (s.savedSnippets || []).filter(snip => snip.id !== snippetId),
+            };
+          });
+
+          const updatedCurrent =
+            state.currentSession?.id === sessionId
+              ? {
+                  ...state.currentSession,
+                  savedSnippets: (state.currentSession.savedSnippets || []).filter(
+                    snip => snip.id !== snippetId
+                  ),
+                }
+              : state.currentSession;
+
+          return {
+            library: { sessions: updatedSessions },
+            currentSession: updatedCurrent,
+          };
+        });
+
+        // Sync to cloud
+        const updatedSession = get().library.sessions.find(s => s.id === sessionId);
+        if (updatedSession) {
+          sessionApi.updateSession(updatedSession);
+        }
+      },
 
       // Fetch sessions from cloud and merge with local sessions
       syncWithCloud: async () => {

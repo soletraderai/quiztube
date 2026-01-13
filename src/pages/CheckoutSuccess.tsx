@@ -28,7 +28,7 @@ export default function CheckoutSuccess() {
       if (devMode === 'true') {
         try {
           // Call API to simulate upgrade in dev mode
-          const response = await fetch('http://localhost:3002/api/subscriptions/dev-upgrade', {
+          const response = await fetch('http://localhost:3001/api/subscriptions/dev-upgrade', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ export default function CheckoutSuccess() {
       }
 
       try {
-        const response = await fetch('http://localhost:3002/api/subscriptions/verify', {
+        const response = await fetch('http://localhost:3001/api/subscriptions/verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

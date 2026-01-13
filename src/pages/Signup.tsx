@@ -240,9 +240,9 @@ export default function Signup() {
             {/* Terms */}
             <p className="text-xs text-text/60 font-body text-center">
               By creating an account, you agree to our{' '}
-              <a href="#" className="text-secondary underline">Terms of Service</a>
+              <Link to="/terms" className="text-secondary underline">Terms of Service</Link>
               {' '}and{' '}
-              <a href="#" className="text-secondary underline">Privacy Policy</a>
+              <Link to="/privacy" className="text-secondary underline">Privacy Policy</Link>
             </p>
           </form>
         </Card>

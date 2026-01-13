@@ -1,4 +1,11 @@
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
+
+// Generate unsubscribe token from user ID (simple hash)
+function generateUnsubscribeToken(userId: string): string {
+  const secret = process.env.JWT_SECRET || 'teachy-secret';
+  return crypto.createHmac('sha256', secret).update(userId).digest('hex').slice(0, 32);
+}
 
 // Create transporter based on environment
 const createTransporter = () => {
@@ -196,8 +203,12 @@ export const sendEmailPrompt = async (
   displayName: string,
   topicName: string,
   question: string,
-  promptId: string
+  promptId: string,
+  userId: string
 ) => {
+  const unsubscribeToken = generateUnsubscribeToken(userId);
+  const unsubscribeUrl = `${frontendUrl}/unsubscribe?userId=${userId}&token=${unsubscribeToken}`;
+
   await transporter.sendMail({
     from: fromAddress,
     to: email,
@@ -216,6 +227,7 @@ export const sendEmailPrompt = async (
             .question { font-size: 18px; margin: 24px 0; }
             .instructions { background: #f5f5f5; padding: 16px; margin: 24px 0; border-left: 4px solid #000; }
             .footer { text-align: center; margin-top: 32px; color: #666; font-size: 14px; }
+            .footer a { color: #666; }
           </style>
         </head>
         <body>
@@ -235,7 +247,7 @@ export const sendEmailPrompt = async (
             </div>
             <div class="footer">
               <p>&copy; ${new Date().getFullYear()} Teachy. All rights reserved.</p>
-              <p><a href="${frontendUrl}/settings">Manage email prompts</a></p>
+              <p><a href="${frontendUrl}/settings">Manage email prompts</a> | <a href="${unsubscribeUrl}">Unsubscribe</a></p>
             </div>
           </div>
         </body>

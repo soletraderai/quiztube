@@ -24,6 +24,7 @@ import timedSessionRoutes from './routes/timedSessions.js';
 import questionRoutes from './routes/questions.js';
 import webhookRoutes from './routes/webhooks.js';
 import validateRoutes from './routes/validate.js';
+import notificationRoutes from './routes/notifications.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -106,6 +107,51 @@ app.get('/api/health', async (req, res) => {
 // Public routes
 app.use('/api/auth', authRoutes);
 
+// Public email-prompts routes (unsubscribe doesn't require auth)
+import { Router, Request, Response, NextFunction } from 'express';
+import { generateUnsubscribeToken, verifyUnsubscribeToken } from './routes/emailPrompts.js';
+
+const publicEmailPromptsRouter = Router();
+publicEmailPromptsRouter.get('/unsubscribe', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId, token } = req.query;
+
+    if (!userId || !token || typeof userId !== 'string' || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Invalid unsubscribe link' });
+    }
+
+    // Verify token
+    if (!verifyUnsubscribeToken(userId, token)) {
+      return res.status(400).json({ error: 'Invalid unsubscribe token' });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { preferences: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Disable email prompts
+    await prisma.userPreferences.update({
+      where: { userId },
+      data: { emailPromptsEnabled: false },
+    });
+
+    res.json({
+      success: true,
+      message: 'You have been unsubscribed from email prompts',
+      email: user.email,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+app.use('/api/email-prompts', publicEmailPromptsRouter);
+
 // Protected routes (require authentication)
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
@@ -123,6 +169,7 @@ app.use('/api/code', authMiddleware, codeRoutes);
 app.use('/api/timed-sessions', authMiddleware, timedSessionRoutes);
 app.use('/api/questions', authMiddleware, questionRoutes);
 app.use('/api/validate', validateRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((req, res) => {

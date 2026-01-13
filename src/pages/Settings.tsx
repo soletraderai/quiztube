@@ -37,7 +37,7 @@ interface LearningModelData {
   };
 }
 
-const API_BASE = 'http://localhost:3002/api';
+const API_BASE = 'http://localhost:3001/api';
 
 // Signal Toggle Component
 interface SignalToggleProps {
@@ -185,6 +185,11 @@ export default function Settings() {
   const [maxDailyReviews, setMaxDailyReviews] = useState(20);
   const [isUpdatingCommitment, setIsUpdatingCommitment] = useState(false);
 
+  // Email prompts settings (Pro feature)
+  const [emailPromptsEnabled, setEmailPromptsEnabled] = useState(false);
+  const [emailPromptsFrequency, setEmailPromptsFrequency] = useState(3);
+  const [isUpdatingEmailPrompts, setIsUpdatingEmailPrompts] = useState(false);
+
   // Fetch commitment mode status and daily target
   useEffect(() => {
     const fetchCommitmentStatus = async () => {
@@ -223,13 +228,29 @@ export default function Settings() {
             setMaxDailyReviews(prefsData.maxDailyReviews);
           }
         }
+
+        // Fetch email prompts settings for Pro users
+        if (user?.tier === 'PRO') {
+          const emailPromptsResponse = await fetch(`${API_BASE}/email-prompts/settings`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            credentials: 'include',
+          });
+
+          if (emailPromptsResponse.ok) {
+            const emailData = await emailPromptsResponse.json();
+            setEmailPromptsEnabled(emailData.enabled || false);
+            setEmailPromptsFrequency(emailData.frequency || 3);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch commitment status:', err);
       }
     };
 
     fetchCommitmentStatus();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.tier]);
 
   // Handle daily commitment change
   const handleCommitmentChange = async (minutes: number) => {
@@ -290,6 +311,45 @@ export default function Settings() {
       setToast({ message: 'Failed to update max daily reviews', type: 'error' });
     } finally {
       setIsUpdatingCommitment(false);
+    }
+  };
+
+  // Handle email prompts settings change
+  const handleEmailPromptsChange = async (enabled: boolean, frequency?: number) => {
+    setIsUpdatingEmailPrompts(true);
+    try {
+      const { accessToken } = useAuthStore.getState();
+      const response = await fetch(`${API_BASE}/email-prompts/settings`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          enabled,
+          frequency: frequency ?? emailPromptsFrequency,
+        }),
+      });
+
+      if (response.ok) {
+        setEmailPromptsEnabled(enabled);
+        if (frequency !== undefined) {
+          setEmailPromptsFrequency(frequency);
+        }
+        setToast({
+          message: enabled
+            ? `Email prompts enabled (${frequency ?? emailPromptsFrequency}x per week)`
+            : 'Email prompts disabled',
+          type: 'success',
+        });
+      } else {
+        setToast({ message: 'Failed to update email prompts settings', type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: 'Failed to update email prompts settings', type: 'error' });
+    } finally {
+      setIsUpdatingEmailPrompts(false);
     }
   };
 
@@ -528,7 +588,7 @@ export default function Settings() {
 
     try {
       // Server-side validation fallback
-      const validationResponse = await fetch('http://localhost:3002/api/validate/settings', {
+      const validationResponse = await fetch('http://localhost:3001/api/validate/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1392,6 +1452,65 @@ export default function Settings() {
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Email Prompts - Pro Feature */}
+            <div className={`p-4 bg-surface border-3 border-border ${!isPro ? 'opacity-60' : ''}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-heading font-semibold text-text text-sm">Email Prompts</p>
+                    <span className="px-2 py-0.5 text-xs font-bold bg-primary border-2 border-border text-text">
+                      PRO
+                    </span>
+                  </div>
+                  <p className="text-xs text-text/60 mb-3">
+                    Receive review questions via email to practice on the go
+                  </p>
+                  {isPro && emailPromptsEnabled && (
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="emailPromptsFrequency" className="text-sm text-text/80">
+                        Frequency:
+                      </label>
+                      <select
+                        id="emailPromptsFrequency"
+                        value={emailPromptsFrequency}
+                        onChange={(e) => handleEmailPromptsChange(true, parseInt(e.target.value))}
+                        disabled={isUpdatingEmailPrompts}
+                        className="px-3 py-1 text-sm bg-background border-2 border-border text-text font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value={1}>1x per week</option>
+                        <option value={2}>2x per week</option>
+                        <option value={3}>3x per week</option>
+                        <option value={5}>5x per week</option>
+                        <option value={7}>Daily</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => isPro && handleEmailPromptsChange(!emailPromptsEnabled)}
+                  disabled={!isPro || isUpdatingEmailPrompts}
+                  className={`relative w-12 h-6 rounded-none border-2 border-border transition-colors ${
+                    emailPromptsEnabled && isPro ? 'bg-primary' : 'bg-surface'
+                  } ${!isPro ? 'cursor-not-allowed' : ''}`}
+                  role="switch"
+                  aria-checked={emailPromptsEnabled && isPro}
+                  aria-label="Toggle email prompts"
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-text transition-transform ${
+                      emailPromptsEnabled && isPro ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              {!isPro && (
+                <p className="text-xs text-text/50 mt-2">
+                  Upgrade to Pro to receive personalized review questions via email
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -71,7 +71,7 @@ export default function Pricing() {
     if (plan === 'pro' && user?.tier === 'FREE') {
       setIsLoading(true);
       try {
-        const response = await fetch('http://localhost:3002/api/subscriptions/checkout', {
+        const response = await fetch('http://localhost:3001/api/subscriptions/checkout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

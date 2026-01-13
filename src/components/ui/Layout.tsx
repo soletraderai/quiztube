@@ -335,9 +335,15 @@ export default function Layout() {
       {/* Footer */}
       <footer className="bg-surface border-t-3 border-border mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <p className="text-center text-sm text-text/70 font-body">
-            YouTube Learning Tool - Transform videos into active learning
-          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-sm text-text/70 font-body">
+              YouTube Learning Tool - Transform videos into active learning
+            </p>
+            <div className="flex items-center gap-4 text-sm text-text/60 font-body">
+              <Link to="/terms" className="hover:text-text transition-colors">Terms</Link>
+              <Link to="/privacy" className="hover:text-text transition-colors">Privacy</Link>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

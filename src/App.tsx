@@ -16,10 +16,14 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import EmailVerification from './pages/EmailVerification';
+import Unsubscribe from './pages/Unsubscribe';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import ReviewSession from './pages/ReviewSession';
+import KnowledgeMap from './pages/KnowledgeMap';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 function App() {
   return (
@@ -32,6 +36,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email/:token" element={<EmailVerification />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
           {/* App routes with layout */}
@@ -43,11 +48,14 @@ function App() {
             <Route path="feed" element={<Feed />} />
             <Route path="goals" element={<Goals />} />
             <Route path="review" element={<ReviewSession />} />
+            <Route path="knowledge-map" element={<KnowledgeMap />} />
             <Route path="session/:sessionId/overview" element={<SessionOverview />} />
             <Route path="session/:sessionId/active" element={<ActiveSession />} />
             <Route path="session/:sessionId/notes" element={<SessionNotes />} />
             <Route path="pricing" element={<Pricing />} />
             <Route path="checkout/success" element={<CheckoutSuccess />} />
+            <Route path="terms" element={<Terms />} />
+            <Route path="privacy" element={<Privacy />} />
             <Route path="404" element={<NotFound />} />
             <Route path="*" element={<Navigate to="/404" replace />} />
           </Route>

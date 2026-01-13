@@ -14,11 +14,13 @@ interface ReviewItem {
   masteryLevel: string;
   questionId: string;
   questionText: string;
+  originalQuestionText?: string;
   correctAnswer: string | null;
   difficulty: string;
   videoTitle: string;
   videoThumbnail: string;
   channelName: string;
+  isRephrased?: boolean;
 }
 
 interface QuickReviewData {
@@ -348,9 +350,19 @@ export default function ReviewSession() {
         <Card>
           <div className="space-y-6">
             <div>
-              <h2 className="font-heading text-lg font-bold text-text mb-2">
-                Question
-              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-heading text-lg font-bold text-text">
+                  Question
+                </h2>
+                {currentItem.isRephrased && (
+                  <span
+                    className="px-2 py-1 text-xs font-medium bg-secondary/20 text-text border border-border rounded"
+                    title="This question has been rephrased to test the same concept from a different angle"
+                  >
+                    Rephrased for review
+                  </span>
+                )}
+              </div>
               <p className="text-text text-lg">{currentItem.questionText}</p>
             </div>
 

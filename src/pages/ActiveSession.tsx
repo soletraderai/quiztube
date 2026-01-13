@@ -5,12 +5,24 @@ import Card from '../components/ui/Card';
 import ProgressBar from '../components/ui/ProgressBar';
 import Toast from '../components/ui/Toast';
 import DigDeeperModal from '../components/ui/DigDeeperModal';
+import CodeEditor from '../components/ui/CodeEditor';
+import CodePlayground from '../components/ui/CodePlayground';
 import { useSessionStore } from '../stores/sessionStore';
 import { evaluateAnswer, RateLimitError, generateFallbackFeedback } from '../services/gemini';
 import type { ChatMessage } from '../types';
 
 type SessionPhase = 'question' | 'feedback' | 'summary';
 type FeedbackType = 'excellent' | 'good' | 'needs-improvement';
+
+// Check if URL is valid
+const isValidUrl = (url: string): boolean => {
+  try {
+    const urlObj = new URL(url);
+    return ['http:', 'https:'].includes(urlObj.protocol);
+  } catch {
+    return false;
+  }
+};
 
 // Source type icons
 const sourceTypeIcons: Record<string, { icon: React.ReactNode; color: string }> = {
@@ -110,6 +122,7 @@ export default function ActiveSession() {
     updateTopic,
     updateQuestion,
     updateScore,
+    saveSnippet,
   } = useSessionStore();
 
   const [phase, setPhase] = useState<SessionPhase>('question');
@@ -507,6 +520,42 @@ export default function ActiveSession() {
             <div className="mt-4 space-y-3 border-t-2 border-border pt-4">
               {session.knowledgeBase.sources.map((source, index) => {
                 const sourceType = sourceTypeIcons[source.type] || sourceTypeIcons.other;
+                const urlValid = isValidUrl(source.url);
+
+                // For invalid URLs, show non-clickable div with warning
+                if (!urlValid) {
+                  return (
+                    <div
+                      key={index}
+                      className="block p-3 bg-surface/50 border-2 border-border opacity-60"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center border-2 border-border bg-yellow-100 text-yellow-700`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-heading font-semibold text-text text-sm truncate">
+                              {source.title}
+                            </span>
+                            <span className="flex-shrink-0 px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300 rounded">
+                              Link Unavailable
+                            </span>
+                          </div>
+                          <p className="text-sm text-text/70 mt-1 line-clamp-2">
+                            {source.snippet}
+                          </p>
+                          <p className="text-xs text-yellow-600 mt-1">
+                            This source link may be broken or unavailable
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <a
                     key={index}
@@ -554,6 +603,47 @@ export default function ActiveSession() {
               </h2>
               <p className="text-text text-lg">{currentQuestion.text}</p>
             </div>
+
+            {/* Code Editor for programming topics */}
+            {currentTopic.codeExample && (
+              <div>
+                <h3 className="font-heading font-semibold text-text mb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Code Example
+                  {['javascript', 'typescript', 'python'].includes(currentTopic.codeLanguage || '') && (
+                    <span className="text-xs text-text/60 font-normal ml-2">(Click Run to execute)</span>
+                  )}
+                  {['html', 'css'].includes(currentTopic.codeLanguage || '') && (
+                    <span className="text-xs text-text/60 font-normal ml-2">(Live Preview)</span>
+                  )}
+                </h3>
+                {(['javascript', 'typescript', 'python', 'html', 'css'].includes(currentTopic.codeLanguage || 'javascript')) ? (
+                  <CodePlayground
+                    initialCode={currentTopic.codeExample}
+                    language={currentTopic.codeLanguage || 'javascript'}
+                    onSaveSnippet={(code, lang) => {
+                      if (sessionId) {
+                        saveSnippet(sessionId, {
+                          code,
+                          language: lang,
+                          topicId: currentTopic.id,
+                          topicTitle: currentTopic.title,
+                        });
+                      }
+                    }}
+                  />
+                ) : (
+                  <CodeEditor
+                    initialCode={currentTopic.codeExample}
+                    language={currentTopic.codeLanguage}
+                    readOnly={true}
+                    className="max-h-[300px] overflow-auto"
+                  />
+                )}
+              </div>
+            )}
 
             <div>
               <label

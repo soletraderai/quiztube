@@ -19,7 +19,7 @@ interface CommitmentData {
   vacationMode: boolean;
 }
 
-const API_BASE = 'http://localhost:3002/api';
+const API_BASE = 'http://localhost:3001/api';
 
 type ChartView = 'week' | 'month';
 
@@ -98,10 +98,34 @@ export default function Dashboard() {
   const maxMinutes = Math.max(...activityData.map((d) => d.minutes), 1);
 
   useEffect(() => {
+    const CACHE_KEY = 'dashboard_commitment_cache';
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
     const fetchCommitment = async () => {
       if (!isAuthenticated()) {
         setLoading(false);
         return;
+      }
+
+      // Check cache first for instant load
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          const cacheAge = Date.now() - timestamp;
+          if (cacheAge < CACHE_DURATION) {
+            setCommitment(data);
+            setLoading(false);
+            // Background refresh if cache is older than 1 minute
+            if (cacheAge > 60 * 1000) {
+              // Continue to fetch fresh data in background
+            } else {
+              return; // Cache is fresh, no need to fetch
+            }
+          }
+        }
+      } catch {
+        // Ignore cache errors
       }
 
       try {
@@ -118,6 +142,16 @@ export default function Dashboard() {
 
         const data = await response.json();
         setCommitment(data);
+
+        // Cache the response
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data,
+            timestamp: Date.now(),
+          }));
+        } catch {
+          // Ignore cache write errors
+        }
       } catch (err) {
         console.error('Failed to fetch commitment:', err);
         setError(err instanceof Error ? err.message : 'Failed to load commitment');
@@ -131,8 +165,25 @@ export default function Dashboard() {
 
   // Fetch learning insights for Pro users
   useEffect(() => {
+    const INSIGHTS_CACHE_KEY = 'dashboard_insights_cache';
+    const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes for insights
+
     const fetchInsights = async () => {
       if (!isPro || !isAuthenticated()) return;
+
+      // Check cache first for instant load
+      try {
+        const cached = localStorage.getItem(INSIGHTS_CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_DURATION) {
+            setInsights(data);
+            return; // Cache is fresh
+          }
+        }
+      } catch {
+        // Ignore cache errors
+      }
 
       try {
         const response = await fetch(`${API_BASE}/learning-model`, {
@@ -145,7 +196,7 @@ export default function Dashboard() {
         if (response.ok) {
           const data = await response.json();
           // Transform API data to insights format
-          setInsights({
+          const insightsData = {
             bestTime: data.bestTimeOfDay || 'Morning',
             avgSessionDuration: data.avgSessionDuration || 15,
             preferredDifficulty: data.preferredDifficulty || 'Medium',
@@ -154,7 +205,18 @@ export default function Dashboard() {
               type: p.signalType || 'general',
               description: p.insight || 'Keep learning consistently',
             })) || [],
-          });
+          };
+          setInsights(insightsData);
+
+          // Cache the insights
+          try {
+            localStorage.setItem(INSIGHTS_CACHE_KEY, JSON.stringify({
+              data: insightsData,
+              timestamp: Date.now(),
+            }));
+          } catch {
+            // Ignore cache write errors
+          }
         }
       } catch (err) {
         console.error('Failed to fetch insights:', err);
@@ -466,12 +528,13 @@ export default function Dashboard() {
       <Card>
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="font-heading text-xl font-bold text-text">
+            <h2 id="activity-chart-heading" className="font-heading text-xl font-bold text-text">
               Activity
             </h2>
-            <div className="flex gap-1">
+            <div className="flex gap-1" role="group" aria-label="Chart time period">
               <button
                 onClick={() => setChartView('week')}
+                aria-pressed={chartView === 'week'}
                 className={`px-3 py-1 text-sm font-heading border-2 border-border transition-all ${
                   chartView === 'week'
                     ? 'bg-primary shadow-brutal-sm'
@@ -482,6 +545,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setChartView('month')}
+                aria-pressed={chartView === 'month'}
                 className={`px-3 py-1 text-sm font-heading border-2 border-border transition-all ${
                   chartView === 'month'
                     ? 'bg-primary shadow-brutal-sm'
@@ -493,13 +557,43 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Bar Chart */}
-          <div className="h-40 flex items-end justify-between gap-1">
+          {/* Screen reader accessible data table */}
+          <div className="sr-only">
+            <table aria-label={`Activity data for the last ${chartView === 'week' ? '7' : '30'} days`}>
+              <caption>Learning activity showing minutes studied and sessions completed per day</caption>
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Minutes</th>
+                  <th>Sessions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityData.map((day, index) => (
+                  <tr key={index}>
+                    <td>{day.date.toLocaleDateString('en', { weekday: 'long', month: 'short', day: 'numeric' })}</td>
+                    <td>{day.minutes} minutes</td>
+                    <td>{day.sessions} sessions</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bar Chart - visual only */}
+          <div
+            className="h-40 flex items-end justify-between gap-1"
+            role="img"
+            aria-labelledby="activity-chart-heading"
+            aria-describedby="activity-chart-summary"
+            aria-hidden="false"
+          >
             {activityData.map((day, index) => (
               <div
                 key={index}
                 className="flex-1 flex flex-col items-center gap-1"
-                title={`${day.minutes} min • ${day.sessions} session${day.sessions !== 1 ? 's' : ''}`}
+                title={`${day.dayLabel}: ${day.minutes} min • ${day.sessions} session${day.sessions !== 1 ? 's' : ''}`}
+                role="presentation"
               >
                 <div
                   className={`w-full border-2 border-border transition-all ${
@@ -509,16 +603,17 @@ export default function Dashboard() {
                     height: `${Math.max((day.minutes / maxMinutes) * 100, day.minutes > 0 ? 10 : 4)}%`,
                     minHeight: day.minutes > 0 ? '8px' : '4px',
                   }}
+                  aria-hidden="true"
                 />
-                <span className="text-xs text-text/60 font-heading">
+                <span className="text-xs text-text/60 font-heading" aria-hidden="true">
                   {chartView === 'week' ? day.dayLabel : (index % 5 === 0 || index === activityData.length - 1 ? day.dayLabel : '')}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* Chart Legend */}
-          <div className="flex justify-between text-sm text-text/60">
+          {/* Chart Legend / Summary */}
+          <div id="activity-chart-summary" className="flex justify-between text-sm text-text/60">
             <span>
               Total: {formatTime(activityData.reduce((acc, d) => acc + d.minutes, 0))}
             </span>
@@ -533,10 +628,10 @@ export default function Dashboard() {
       {library.sessions.length > 0 && (
         <Card>
           <div className="space-y-4">
-            <h2 className="font-heading text-xl font-bold text-text">
+            <h2 id="topic-performance-heading" className="font-heading text-xl font-bold text-text">
               Topic Performance
             </h2>
-            <div className="space-y-3">
+            <div className="space-y-3" role="list" aria-labelledby="topic-performance-heading">
               {(() => {
                 // Aggregate topic performance across all sessions
                 const topicStats: Record<string, { name: string; total: number; completed: number; questionsAnswered: number }> = {};
@@ -575,12 +670,17 @@ export default function Dashboard() {
                   const isStrength = percentage >= 80;
 
                   return (
-                    <div key={index} className="space-y-1">
+                    <div
+                      key={index}
+                      className="space-y-1"
+                      role="listitem"
+                      aria-label={`${topic.name}: ${topic.questionsAnswered} questions answered${isStrength ? ', marked as strength' : ''}`}
+                    >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-heading text-text truncate max-w-[60%]">
                           {topic.name}
                           {isStrength && (
-                            <span className="ml-2 px-2 py-0.5 text-xs bg-secondary/30 border border-border">
+                            <span className="ml-2 px-2 py-0.5 text-xs bg-secondary/30 border border-border" aria-hidden="true">
                               Strength
                             </span>
                           )}
@@ -589,7 +689,14 @@ export default function Dashboard() {
                           {topic.questionsAnswered} questions
                         </span>
                       </div>
-                      <div className="h-2 bg-border/20 border border-border overflow-hidden">
+                      <div
+                        className="h-2 bg-border/20 border border-border overflow-hidden"
+                        role="progressbar"
+                        aria-valuenow={topic.questionsAnswered}
+                        aria-valuemin={0}
+                        aria-valuemax={maxQuestions}
+                        aria-label={`${topic.name} progress`}
+                      >
                         <div
                           className={`h-full transition-all ${isStrength ? 'bg-secondary' : 'bg-primary'}`}
                           style={{ width: `${percentage}%` }}

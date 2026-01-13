@@ -254,7 +254,7 @@ export default function Onboarding() {
   const handleComplete = async () => {
     try {
       const { accessToken } = useAuthStore.getState();
-      const response = await fetch('http://localhost:3002/api/users/complete-onboarding', {
+      const response = await fetch('http://localhost:3001/api/users/complete-onboarding', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

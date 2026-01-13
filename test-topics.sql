@@ -1,0 +1,18 @@
+INSERT INTO topics (id, user_id, session_id, name, description, category, mastery_level, ease_factor, review_interval_days, next_review_date, review_count, created_at, updated_at)
+VALUES
+  ('test-topic-002', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'React Components', 'Understanding React component architecture', 'Programming', 'DEVELOPING', 2.5, 1, NOW() - INTERVAL '1 day', 1, NOW(), NOW()),
+  ('test-topic-003', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'State Management', 'React state and props', 'Programming', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW()),
+  ('test-topic-004', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'React Hooks', 'useState, useEffect, and custom hooks', 'Programming', 'DEVELOPING', 2.5, 1, NOW() - INTERVAL '1 day', 1, NOW(), NOW()),
+  ('test-topic-005', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'CSS Flexbox', 'Flexible box layout', 'Frontend', 'FAMILIAR', 2.6, 3, NOW() - INTERVAL '1 day', 2, NOW(), NOW()),
+  ('test-topic-006', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'CSS Grid', 'Grid layout system', 'Frontend', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW()),
+  ('test-topic-007', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'TypeScript Basics', 'TypeScript fundamentals', 'Programming', 'DEVELOPING', 2.5, 1, NOW() - INTERVAL '1 day', 1, NOW(), NOW()),
+  ('test-topic-008', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Node.js Fundamentals', 'Server-side JavaScript', 'Backend', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW()),
+  ('test-topic-009', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Express.js Routing', 'Building APIs with Express', 'Backend', 'DEVELOPING', 2.5, 1, NOW() - INTERVAL '1 day', 1, NOW(), NOW()),
+  ('test-topic-010', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Database Design', 'SQL and database concepts', 'Backend', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW()),
+  ('test-topic-011', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'REST API Design', 'RESTful API principles', 'Backend', 'FAMILIAR', 2.6, 3, NOW() - INTERVAL '1 day', 2, NOW(), NOW()),
+  ('test-topic-012', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Git Version Control', 'Git basics and workflows', 'Tools', 'DEVELOPING', 2.5, 1, NOW() - INTERVAL '1 day', 1, NOW(), NOW()),
+  ('test-topic-013', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Docker Containers', 'Containerization basics', 'DevOps', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW()),
+  ('test-topic-014', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Testing with Jest', 'Unit testing JavaScript', 'Testing', 'DEVELOPING', 2.5, 1, NOW() - INTERVAL '1 day', 1, NOW(), NOW()),
+  ('test-topic-015', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'CI CD Pipelines', 'Continuous integration basics', 'DevOps', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW()),
+  ('test-topic-016', '70f7e89a-80b0-43e4-805b-a6daa4f592e6', '8401fc01-0544-4e5a-bdb6-54af34e69d95', 'Web Security', 'Security best practices', 'Security', 'INTRODUCED', 2.5, 1, NOW() - INTERVAL '1 day', 0, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;

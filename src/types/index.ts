@@ -62,6 +62,20 @@ export interface Topic {
   bookmarked: boolean;
   skipped: boolean;
   completed: boolean;
+  // Code-related fields for programming topics
+  codeExample?: string;
+  codeLanguage?: string;
+}
+
+// Code snippet type
+export interface CodeSnippet {
+  id: string;
+  code: string;
+  language: string;
+  topicId: string | null;
+  topicTitle: string | null;
+  savedAt: number;
+  name?: string;
 }
 
 // Session score type
@@ -87,6 +101,7 @@ export interface Session {
   currentQuestionIndex: number;
   difficulty: 'standard' | 'easier' | 'harder';
   status: 'processing' | 'overview' | 'active' | 'completed';
+  savedSnippets?: CodeSnippet[];
 }
 
 // Library type (collection of sessions)
