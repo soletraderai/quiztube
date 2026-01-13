@@ -112,6 +112,7 @@ export interface Session {
   difficulty: 'standard' | 'easier' | 'harder';
   status: 'processing' | 'overview' | 'active' | 'completed';
   savedSnippets?: CodeSnippet[];
+  transcript?: string;  // Raw YouTube transcript text for note generation
 }
 
 // Library type (collection of sessions)

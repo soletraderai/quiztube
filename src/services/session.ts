@@ -117,6 +117,7 @@ export async function createSession(
     currentQuestionIndex: 0,
     difficulty: 'standard',
     status: 'overview',
+    transcript: transcript || undefined,  // Store transcript for note generation
   };
 
   return session;
