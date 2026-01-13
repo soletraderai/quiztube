@@ -458,6 +458,227 @@ export default function Dashboard() {
         </Card>
       )}
 
+      {/* Knowledge Gaps Section (Pro Only) */}
+      {isPro && library.sessions.length > 0 ? (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h2 id="knowledge-gaps-heading" className="font-heading text-xl font-bold text-text">
+                Knowledge Gaps
+              </h2>
+              <span className="px-2 py-0.5 text-xs font-bold bg-secondary border-2 border-border">
+                PRO
+              </span>
+            </div>
+            <p className="text-sm text-text/70">
+              Topics where you may need more practice
+            </p>
+            <div className="space-y-3" role="list" aria-labelledby="knowledge-gaps-heading">
+              {(() => {
+                // Aggregate topic performance - track completion percentage and source videos
+                const topicStats: Record<string, {
+                  name: string;
+                  totalQuestions: number;
+                  answeredQuestions: number;
+                  skippedCount: number;
+                  completedCount: number;
+                  totalInstances: number;
+                  // Track sessions containing this topic for video suggestions
+                  sessions: Array<{ id: string; video: typeof library.sessions[0]['video']; hasUnansweredQuestions: boolean }>;
+                }> = {};
+
+                library.sessions.forEach((session) => {
+                  session.topics.forEach((topic) => {
+                    const key = topic.title.toLowerCase().slice(0, 30);
+                    if (!topicStats[key]) {
+                      topicStats[key] = {
+                        name: topic.title,
+                        totalQuestions: 0,
+                        answeredQuestions: 0,
+                        skippedCount: 0,
+                        completedCount: 0,
+                        totalInstances: 0,
+                        sessions: [],
+                      };
+                    }
+                    topicStats[key].totalInstances += 1;
+                    topicStats[key].totalQuestions += topic.questions.length;
+                    const answered = topic.questions.filter((q) => q.userAnswer).length;
+                    topicStats[key].answeredQuestions += answered;
+                    if (topic.skipped) topicStats[key].skippedCount += 1;
+                    if (topic.completed) topicStats[key].completedCount += 1;
+                    // Track this session if it has unanswered questions for this topic
+                    const hasUnansweredQuestions = answered < topic.questions.length;
+                    topicStats[key].sessions.push({
+                      id: session.id,
+                      video: session.video,
+                      hasUnansweredQuestions,
+                    });
+                  });
+                });
+
+                // Calculate completion rate and find gaps
+                // Knowledge gaps = topics with low completion rate (answered few questions)
+                const knowledgeGaps = Object.values(topicStats)
+                  .filter((t) => t.totalQuestions >= 2) // At least 2 questions available
+                  .map((t) => ({
+                    ...t,
+                    completionRate: Math.round((t.answeredQuestions / t.totalQuestions) * 100),
+                  }))
+                  .filter((t) => t.completionRate < 60) // Less than 60% questions answered
+                  .sort((a, b) => a.completionRate - b.completionRate)
+                  .slice(0, 5);
+
+                if (knowledgeGaps.length === 0) {
+                  return (
+                    <div className="text-center py-6">
+                      <span className="material-icons text-4xl text-secondary/50 mb-2" aria-hidden="true">
+                        check_circle
+                      </span>
+                      <p className="text-text/60">
+                        Great job! No significant knowledge gaps detected.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return knowledgeGaps.map((topic, index) => {
+                  const isVeryLow = topic.completionRate < 30;
+                  // Find the best video suggestion - prefer one with unanswered questions
+                  const suggestedSession = topic.sessions.find((s) => s.hasUnansweredQuestions) || topic.sessions[0];
+
+                  return (
+                    <div
+                      key={index}
+                      className="p-3 bg-surface border-2 border-border space-y-2"
+                      role="listitem"
+                      aria-label={`${topic.name}: ${topic.completionRate}% completion`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-heading font-semibold text-text truncate max-w-[60%]">
+                          {topic.name}
+                        </span>
+                        <span className={`px-2 py-0.5 text-sm font-bold border-2 border-border ${
+                          isVeryLow ? 'bg-error/20 text-error' : 'bg-primary/30 text-text'
+                        }`}>
+                          {topic.completionRate}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-text/60">
+                        <span>{topic.answeredQuestions}/{topic.totalQuestions} questions answered</span>
+                        {isVeryLow && (
+                          <span className="flex items-center gap-1 text-error">
+                            <span className="material-icons text-sm" aria-hidden="true">priority_high</span>
+                            Needs attention
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="h-2 bg-border/20 border border-border overflow-hidden"
+                        role="progressbar"
+                        aria-valuenow={topic.completionRate}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`${topic.name} completion`}
+                      >
+                        <div
+                          className={`h-full transition-all ${isVeryLow ? 'bg-error' : 'bg-primary'}`}
+                          style={{ width: `${topic.completionRate}%` }}
+                        />
+                      </div>
+                      {/* Suggested video to address this gap */}
+                      {suggestedSession && (
+                        <div className="mt-2 pt-2 border-t border-border/30">
+                          <p className="text-xs text-text/50 mb-2">Suggested video:</p>
+                          <button
+                            onClick={() => navigate('/', { state: { videoUrl: suggestedSession.video.url, autoStart: true } })}
+                            className="w-full flex items-center gap-2 p-2 bg-primary/10 border border-border hover:bg-primary/20 transition-colors text-left"
+                          >
+                            {suggestedSession.video.thumbnailUrl ? (
+                              <img
+                                src={suggestedSession.video.thumbnailUrl}
+                                alt=""
+                                className="w-12 h-9 object-cover border border-border flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-9 bg-border/20 border border-border flex items-center justify-center flex-shrink-0">
+                                <span className="material-icons text-sm text-text/30">videocam</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-heading text-text truncate">
+                                {suggestedSession.video.title}
+                              </p>
+                              <p className="text-xs text-text/50 truncate">
+                                {suggestedSession.video.channel}
+                              </p>
+                            </div>
+                            <span className="material-icons text-secondary text-lg flex-shrink-0" aria-hidden="true">
+                              play_circle
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </Card>
+      ) : library.sessions.length > 0 ? (
+        /* Knowledge Gaps Pro Teaser for Free Users */
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/90 z-10" />
+          <div className="space-y-4 blur-sm">
+            <div className="flex items-center gap-2">
+              <h2 className="font-heading text-xl font-bold text-text">
+                Knowledge Gaps
+              </h2>
+              <span className="px-2 py-0.5 text-xs font-bold bg-secondary border-2 border-border">
+                PRO
+              </span>
+            </div>
+            <p className="text-sm text-text/70">
+              Topics where you may need more practice
+            </p>
+            <div className="space-y-3">
+              {/* Placeholder items */}
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-3 bg-surface border-2 border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-heading font-semibold text-text">Sample Topic {i}</span>
+                    <span className="px-2 py-0.5 text-sm font-bold border-2 border-border bg-error/20 text-error">
+                      {20 + i * 10}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-border/20 border border-border overflow-hidden">
+                    <div className="h-full bg-error" style={{ width: `${20 + i * 10}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center z-20">
+            <div className="text-center">
+              <span className="material-icons text-4xl text-secondary mb-2" aria-hidden="true">
+                psychology
+              </span>
+              <p className="font-heading font-bold text-text mb-2">Identify Knowledge Gaps</p>
+              <p className="text-sm text-text/60 mb-4 max-w-xs">
+                Pro users can see which topics need more practice and get personalized video suggestions
+              </p>
+              <button
+                onClick={() => navigate('/pricing')}
+                className="px-4 py-2 font-heading font-bold bg-secondary border-3 border-border shadow-brutal hover:shadow-brutal-hover transition-all"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       {/* Pro Insights Section */}
       {isPro ? (
         <Card>
