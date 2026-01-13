@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuthStore, authApi } from '../stores/authStore';
 import { useDocumentTitle } from '../hooks';
+import MaterialIcon from '../components/ui/MaterialIcon';
 
 export default function AuthCallback() {
   useDocumentTitle('Authenticating');
@@ -124,9 +125,7 @@ export default function AuthCallback() {
         <div className="w-full max-w-md">
           <div className="brutal-card p-8 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <MaterialIcon name="close" size={32} className="text-red-600" />
             </div>
             <h1 className="text-2xl font-bold mb-2">Authentication Failed</h1>
             <p className="text-gray-600 mb-6">{error}</p>
@@ -147,9 +146,7 @@ export default function AuthCallback() {
       <div className="w-full max-w-md">
         <div className="brutal-card p-8 text-center">
           <div className="w-16 h-16 bg-[#FFDE59] rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+            <MaterialIcon name="lock" size={32} />
           </div>
           <h1 className="text-2xl font-bold mb-2">Completing sign in...</h1>
           <p className="text-gray-600">Please wait while we set up your account.</p>

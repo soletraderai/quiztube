@@ -5,6 +5,7 @@ import OfflineBanner from './OfflineBanner';
 import Breadcrumb from './Breadcrumb';
 import PageTransition from './PageTransition';
 import Tooltip from './Tooltip';
+import MaterialIcon from './MaterialIcon';
 import { useAuthStore } from '../../stores/authStore';
 import { api } from '../../services/api';
 
@@ -82,9 +83,7 @@ export default function Layout() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <MaterialIcon name="schedule" size="md" className="text-text" decorative />
                 <span className="font-heading font-semibold text-text">
                   You have <strong>{dueTopicsCount}</strong> topic{dueTopicsCount !== 1 ? 's' : ''} due for review!
                 </span>
@@ -101,9 +100,7 @@ export default function Layout() {
                   className="p-1 hover:bg-background/50 transition-colors"
                   aria-label="Dismiss notification"
                 >
-                  <svg className="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <MaterialIcon name="close" size="sm" className="text-text" decorative />
                 </button>
               </div>
             </div>
@@ -117,9 +114,7 @@ export default function Layout() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+                <MaterialIcon name="warning" size="md" className="text-text" decorative />
                 <span className="font-heading font-semibold text-text">
                   {approachingGoals.length === 1 ? (
                     <>
@@ -148,9 +143,7 @@ export default function Layout() {
                   className="p-1 hover:bg-background/50 transition-colors"
                   aria-label="Dismiss notification"
                 >
-                  <svg className="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <MaterialIcon name="close" size="sm" className="text-text" decorative />
                 </button>
               </div>
             </div>
@@ -235,28 +228,11 @@ export default function Layout() {
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                {mobileMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                )}
-              </svg>
+              <MaterialIcon
+                name={mobileMenuOpen ? 'close' : 'menu'}
+                size="lg"
+                decorative
+              />
             </button>
           </div>
 

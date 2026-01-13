@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/ui/Layout';
+import SidebarLayout from './components/ui/SidebarLayout';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
@@ -45,9 +46,17 @@ function App() {
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
 
-          {/* App routes with layout */}
+          {/* Public routes with top navbar (old Layout) */}
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
+            <Route path="pricing" element={<Pricing />} />
+            <Route path="terms" element={<Terms />} />
+            <Route path="privacy" element={<Privacy />} />
+            <Route path="404" element={<NotFound />} />
+          </Route>
+
+          {/* App routes with sidebar navigation */}
+          <Route element={<SidebarLayout />}>
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="settings" element={<Settings />} />
             <Route path="library" element={<Library />} />
@@ -62,13 +71,11 @@ function App() {
             <Route path="session/:sessionId/overview" element={<SessionOverview />} />
             <Route path="session/:sessionId/active" element={<ActiveSession />} />
             <Route path="session/:sessionId/notes" element={<SessionNotes />} />
-            <Route path="pricing" element={<Pricing />} />
             <Route path="checkout/success" element={<CheckoutSuccess />} />
-            <Route path="terms" element={<Terms />} />
-            <Route path="privacy" element={<Privacy />} />
-            <Route path="404" element={<NotFound />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
           </Route>
+
+          {/* Catch-all redirect */}
+          <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

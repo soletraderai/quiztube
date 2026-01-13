@@ -1,6 +1,7 @@
 // Query hooks
 export { useCommitment, type CommitmentData } from './queries/useCommitment';
 export { useLearningInsights, type LearningInsights } from './queries/useLearningInsights';
+export { useDueTopics, type DueTopic } from './queries/useDueTopics';
 export {
   useGoals,
   useGoalSuggestions,

@@ -5,7 +5,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import StaggeredList, { StaggeredItem } from '../components/ui/StaggeredList';
 import { useAuthStore } from '../stores/authStore';
 import { useSessionStore } from '../stores/sessionStore';
-import { useCommitment, useLearningInsights, useDocumentTitle } from '../hooks';
+import { useCommitment, useLearningInsights, useDueTopics, useDocumentTitle } from '../hooks';
 
 type ChartView = 'week' | 'month';
 
@@ -33,6 +33,9 @@ export default function Dashboard() {
   } = useCommitment();
 
   const { data: insights } = useLearningInsights();
+
+  // Fetch topics due for review
+  const { data: dueTopics } = useDueTopics();
 
   const error = commitmentError?.message || null;
 
@@ -281,6 +284,153 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {/* Continue Series Recommendations */}
+      {(() => {
+        // Group sessions by channel to find series
+        const channelSessions: Record<string, { channel: string; sessions: typeof library.sessions; lastSessionDate: number }> = {};
+
+        library.sessions.forEach((session) => {
+          const channelKey = session.video.channel.toLowerCase();
+          if (!channelSessions[channelKey]) {
+            channelSessions[channelKey] = {
+              channel: session.video.channel,
+              sessions: [],
+              lastSessionDate: 0,
+            };
+          }
+          channelSessions[channelKey].sessions.push(session);
+          const sessionDate = new Date(session.createdAt).getTime();
+          if (sessionDate > channelSessions[channelKey].lastSessionDate) {
+            channelSessions[channelKey].lastSessionDate = sessionDate;
+          }
+        });
+
+        // Find channels with 2+ sessions (potential series)
+        const seriesChannels = Object.values(channelSessions)
+          .filter((ch) => ch.sessions.length >= 2)
+          .sort((a, b) => b.lastSessionDate - a.lastSessionDate)
+          .slice(0, 3); // Show max 3 series
+
+        if (seriesChannels.length === 0) return null;
+
+        return (
+          <Card>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <h2 className="font-heading text-xl font-bold text-text">
+                  Continue Series
+                </h2>
+                <span className="material-icons text-secondary" aria-hidden="true">
+                  play_circle
+                </span>
+              </div>
+              <p className="text-sm text-text/70">
+                Pick up where you left off with these creators
+              </p>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {seriesChannels.map((channelData, index) => {
+                  const mostRecentSession = channelData.sessions.sort(
+                    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                  )[0];
+                  const completedCount = channelData.sessions.filter(
+                    (s) => s.status === 'completed'
+                  ).length;
+
+                  return (
+                    <div
+                      key={index}
+                      className="p-4 bg-surface border-3 border-border shadow-brutal-sm hover:shadow-brutal transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        {mostRecentSession.video.thumbnailUrl ? (
+                          <img
+                            src={mostRecentSession.video.thumbnailUrl}
+                            alt={`${channelData.channel} thumbnail`}
+                            className="w-16 h-12 object-cover border-2 border-border flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-12 bg-primary/30 border-2 border-border flex items-center justify-center flex-shrink-0">
+                            <span className="material-icons text-text/50">videocam</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-heading font-semibold text-text truncate">
+                            {channelData.channel}
+                          </h3>
+                          <p className="text-xs text-text/60 mt-1">
+                            {channelData.sessions.length} videos • {completedCount} completed
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          // Navigate to home with the most recent video URL for auto-start
+                          navigate('/', {
+                            state: {
+                              videoUrl: mostRecentSession.video.url,
+                              autoStart: true,
+                            },
+                          });
+                        }}
+                        className="w-full mt-3 px-3 py-2 font-heading font-semibold text-sm bg-secondary border-2 border-border shadow-brutal-sm hover:shadow-brutal transition-all flex items-center justify-center gap-2"
+                      >
+                        <span className="material-icons text-base" aria-hidden="true">
+                          play_arrow
+                        </span>
+                        Continue
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
+
+      {/* Due for Review Card */}
+      {dueTopics && dueTopics.length > 0 && (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h2 className="font-heading text-xl font-bold text-text">
+                Due for Review
+              </h2>
+              <span className="material-icons text-secondary" aria-hidden="true">
+                schedule
+              </span>
+            </div>
+            <p className="text-sm text-text/70">
+              Topics from spaced repetition ready for review
+            </p>
+            <div className="flex items-center justify-between p-4 bg-secondary/20 border-3 border-border">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-secondary border-2 border-border flex items-center justify-center">
+                  <span className="font-heading text-xl font-bold text-text">{dueTopics.length}</span>
+                </div>
+                <div>
+                  <p className="font-heading font-semibold text-text">
+                    {dueTopics.length} topic{dueTopics.length !== 1 ? 's' : ''} due
+                  </p>
+                  <p className="text-sm text-text/60">
+                    Estimated {Math.ceil(dueTopics.length * 2)} min review
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/review')}
+                className="px-4 py-2 font-heading font-semibold bg-secondary border-3 border-border shadow-brutal-sm hover:shadow-brutal transition-all flex items-center gap-2"
+              >
+                <span className="material-icons text-base" aria-hidden="true">
+                  play_arrow
+                </span>
+                Quick Review
+              </button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Pro Insights Section */}
       {isPro ? (

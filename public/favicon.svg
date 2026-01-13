@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background with primary yellow color -->
+  <rect width="32" height="32" rx="6" fill="#FFDE59"/>
+
+  <!-- Border for neobrutalism style -->
+  <rect width="32" height="32" rx="6" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+
+  <!-- QT letters stylized -->
+  <text x="4" y="23" font-family="Arial Black, sans-serif" font-size="14" font-weight="900" fill="#1a1a1a">QT</text>
+
+  <!-- Small play triangle accent -->
+  <polygon points="26,22 30,25 26,28" fill="#1a1a1a"/>
+</svg>
