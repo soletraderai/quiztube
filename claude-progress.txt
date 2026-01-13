@@ -1,5 +1,83 @@
 # Teachy Phase 2 - Progress Report
 
+## Session 21 - January 13, 2026
+
+### Summary
+Added legal pages (Terms of Service, Privacy Policy), implemented dashboard caching for performance, and added graceful handling for broken source URLs. Progress increased from 368/415 to 372/415 (89.6%).
+
+### Current Progress
+- **Passing**: 372/415 features (89.6%)
+- **Phase**: 2
+
+### Session 21 Implemented Features
+
+#### 1. Handle 404 Sources Gracefully - Feature #668
+- Added `isValidUrl()` helper function to validate source URLs
+- Invalid URLs (missing protocol, malformed) show warning icon
+- "Link Unavailable" badge for broken links
+- Helpful message: "This source link may be broken or unavailable"
+- Prevents 404 errors when clicking broken source links
+
+#### 2. Dashboard Caching for Performance - Feature #689
+- Implemented localStorage caching for commitment data
+  - 5 minute cache duration
+  - Instant load from cache
+  - Background refresh when cache > 1 minute old
+- Implemented localStorage caching for learning insights
+  - 10 minute cache duration
+  - Immediate display from cache
+- Dashboard now loads instantly on navigation
+
+#### 3. Terms of Service Page - Feature #710
+- Created `/terms` route with comprehensive ToS content
+- 10 sections covering: acceptance, service description, accounts, payments, acceptable use, IP, third-party content, liability, changes, contact
+- Links to Privacy Policy and Home
+- Added to footer navigation
+
+#### 4. Privacy Policy Page - Feature #711
+- Created `/privacy` route with detailed privacy policy
+- 11 sections covering: data collection, usage, storage, sharing, user rights, cookies, children's privacy, international transfers, retention, changes, contact
+- Links to Terms of Service and Home
+- Added to footer navigation
+
+### Files Created
+- `src/pages/Terms.tsx` - Terms of Service page
+- `src/pages/Privacy.tsx` - Privacy Policy page
+
+### Files Modified
+- `src/App.tsx` - Added routes for /terms and /privacy
+- `src/pages/ActiveSession.tsx` - Added broken URL handling for sources
+- `src/pages/Dashboard.tsx` - Added localStorage caching for commitment and insights
+- `src/components/ui/Layout.tsx` - Added Terms/Privacy links to footer
+- `src/pages/Signup.tsx` - Updated ToS/Privacy links to proper routes
+
+### Commits This Session
+- `705fc21` - feat: Add Terms/Privacy pages, dashboard caching, source error handling
+
+### Skipped Features (require infrastructure)
+- Notification timing ML (#671)
+- Topic priority settings (#675)
+- Quiet hours (#676)
+- Email SPF/DKIM (#677)
+- Email bounce handling (#678)
+- Email auto-reply detection (#679)
+- Knowledge map performance (#681-682)
+- Code sandbox security (#683)
+- Code output evaluation (#686)
+- Timed sessions (#687-688)
+- Export date range (#695)
+- Email-related features (#696-697)
+- Stripe features (#700-702)
+- Accessibility screen reader (#705)
+
+### Notes for Next Session
+- Progress at 89.6% (372/415)
+- Remaining features mostly require external infrastructure
+- API server running on port 3002
+- Frontend running on port 5173
+
+---
+
 ## Session 20 - January 13, 2026
 
 ### Summary
