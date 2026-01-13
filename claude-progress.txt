@@ -1,0 +1,52 @@
+# QuizTube (formerly Teachy) - Progress Notes
+
+## Phase 3 Progress
+
+### Session 1 - January 13, 2026
+
+**Completed:**
+1. ✅ Created 176 features for Phase 3 using feature_create_bulk
+2. ✅ QuizTube Rebrand - Replaced all "Teachy" text with "QuizTube"
+   - Updated Login, Signup, ForgotPassword, ResetPassword pages
+   - Updated Terms of Service and Privacy Policy
+   - Updated email addresses (@teachy.app → @quiztube.app)
+   - Updated Layout header and footer
+   - Updated export text in SessionNotes
+   - Updated index.html title
+3. ✅ Page Titles - Added useDocumentTitle hook
+   - Created /src/hooks/useDocumentTitle.ts
+   - Added hook to ALL pages (28 pages total)
+   - Format: "QuizTube - [Page Name]"
+
+**Features Status:**
+- Passing: 2 / 176 (1.1%)
+- Completed: Feature IDs 718-719
+
+**Next Steps (Priority Order):**
+1. Update meta tags (Open Graph, Twitter Cards)
+2. Update favicon to QuizTube icon
+3. Install Google Material Icons library
+4. Create MaterialIcon component wrapper
+5. Replace existing icons with Material Icons
+6. Create sidebar navigation components
+7. Implement sidebar collapse/expand
+8. Add responsive sidebar behavior
+
+**Technical Notes:**
+- useDocumentTitle hook sets title as "QuizTube - [Page Name]"
+- Hook restores previous title on unmount
+- Storage keys (teachy-auth, teachy-supabase-auth) kept as-is for backward compatibility
+
+**Files Changed This Session:**
+- src/hooks/useDocumentTitle.ts (new)
+- src/hooks/index.ts
+- src/pages/*.tsx (all pages - added document titles)
+- src/components/ui/Layout.tsx
+- index.html
+- src/pages/Terms.tsx, Privacy.tsx, Pricing.tsx (email updates)
+
+---
+
+## Previous Phases
+
+See claude-progress-2.txt for Phase 1-2 history.
