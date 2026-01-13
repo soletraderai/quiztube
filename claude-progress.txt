@@ -2,6 +2,48 @@
 
 ## Phase 3 Progress - COMPLETE! 100% (176/176)
 
+### Session 21 - January 13, 2026 (Regression Verification)
+
+**Regression Testing Completed:**
+- All servers verified running (localhost:5173, localhost:3001 proxy)
+- Tested 3 randomly selected features for regression:
+
+1. ✅ **Feature 735: Sidebar navigation - Toggle button**
+   - When expanded: Shows "Collapse sidebar" with chevron_left icon
+   - When collapsed: Shows "Expand sidebar" with chevron_right icon
+   - Logo changes from "QT QuizTube" to just "QT"
+   - Navigation labels hidden when collapsed, only icons visible
+   - User section shows only avatar "TE" when collapsed
+   - State correctly persists across page refresh
+
+2. ✅ **Feature 718: QuizTube rebrand - Replace all Teachy text**
+   - Page title is "QuizTube - Home" (not "Teachy")
+   - Header shows "QuizTube" branding
+   - Footer says "QuizTube - Transform videos into active learning"
+   - All pages verified: Home, Dashboard, Library, Session Notes
+
+3. ✅ **Feature 835: API - GET /api/sessions/:id/notes** (via Library search → Session Notes)
+   - Library search works: typed "React" → filtered from 6 to 1 session
+   - Analytics logged: `{query: React, resultsCount: 1}`
+   - Clicked session → navigated to Session Notes page
+   - Session Notes displays: video metadata, score, key takeaways, structured notes with timestamps, source materials
+
+**Visual Verification:**
+- Screenshots captured: regression-dashboard-expanded.png, regression-sidebar-collapsed.png, regression-library-search.png, regression-session-notes.png
+- Neobrutalism design intact throughout (hard black borders, yellow accents, chunky buttons)
+- Material Icons rendering correctly
+- Sidebar collapse/expand works with persistence
+
+**Console Errors (Expected):**
+- 404 errors for `/api/commitment/today`, `/api/learning-model`, `/api/topics/due-for-review`
+- These are backend API endpoints not implemented in the simple proxy server
+- Core functionality works with localStorage as specified in app_spec.txt
+
+**Status:** Phase 3 is fully complete and stable (176/176 features passing).
+No `phase4_spec.txt` exists - waiting for detailed Phase 4 specification.
+
+---
+
 ### Session 20 - January 13, 2026 (Regression Verification)
 
 **Regression Testing Completed:**
