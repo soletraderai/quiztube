@@ -2,6 +2,58 @@
 
 ## Phase 3 Progress - COMPLETE! 100% (176/176)
 
+### Session 29 - January 13, 2026 (Regression Verification)
+
+**Regression Testing Completed:**
+- All servers verified running (localhost:5173 frontend, localhost:5174 alternate, localhost:5175, localhost:3001 proxy)
+- Tested 3 randomly selected features for regression:
+
+1. ✅ **Feature 809: URL validation - Prevent invalid submission**
+   - Entered invalid URL: "not-a-valid-url"
+   - Clicked "Start Learning" button
+   - Submission was blocked (stayed on same page)
+   - Error message "Please enter a URL." displayed with orange warning icon
+   - Error tooltip styled correctly with neobrutalism aesthetics
+
+2. ✅ **Feature 838: API - GET /api/search (via Library search UI)**
+   - Navigated to Library page (7 sessions displayed)
+   - Typed "React" in search box
+   - Sessions filtered instantly from 7 to 1 session
+   - Analytics logged: `{timestamp: ..., query: React, resultsCount: 1}`
+   - URL updated to include search parameter `?search=React`
+   - Clear button appeared correctly
+   - "1 session (filtered)" text displayed
+   - Only "React in 100 Seconds" by Fireship showing (correct filter)
+
+3. ✅ **Feature 754: Database - Create session_learning_notes table**
+   - Verified Prisma schema at api/prisma/schema.prisma (lines 557-571)
+   - SessionLearningNotes model with correct columns:
+     - id (UUID primary key)
+     - session_id (unique foreign key)
+     - notes_markdown (text)
+     - sections (JSON array)
+     - code_detected (boolean)
+     - generated_at, created_at, updated_at (timestamps)
+   - QuestionNoteMapping table also verified (lines 573-584)
+   - Proper relations and indexes defined
+
+**Visual Verification:**
+- Screenshots captured: regression-invalid-url-test.png, regression-library-search.png, regression-dashboard-session29.png
+- Neobrutalism design intact throughout (hard black borders, yellow accents, chunky buttons)
+- Material Icons rendering correctly
+- Sidebar navigation with dark background (#1a1a1a), active state styling (yellow left border)
+- Dashboard sections: Today's Commitment, Quick Stats (7 sessions, 21 topics), Quick Actions, Continue Series, Learning Paths, Knowledge Gaps, Activity Chart, Topic Performance, Recommended for You, Recent Sessions
+
+**Console Errors (Expected):**
+- 404 errors for `/api/commitment/today`, `/api/learning-model`, `/api/topics/due-for-review`, `/api/goals`
+- These are backend API endpoints not implemented in the simple proxy server
+- Core functionality works with localStorage as specified in app_spec.txt
+
+**Status:** Phase 3 is fully complete and stable (176/176 features passing).
+No `phase4_spec.txt` exists - waiting for detailed Phase 4 specification.
+
+---
+
 ### Session 28 - January 13, 2026 (Regression Verification)
 
 **Regression Testing Completed:**
