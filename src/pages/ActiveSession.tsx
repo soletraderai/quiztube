@@ -7,6 +7,8 @@ import Toast from '../components/ui/Toast';
 import DigDeeperModal from '../components/ui/DigDeeperModal';
 import CodeEditor from '../components/ui/CodeEditor';
 import CodePlayground from '../components/ui/CodePlayground';
+import MaterialIcon from '../components/ui/MaterialIcon';
+import { useHelpContext } from '../components/ui/SidebarLayout';
 import { useSessionStore } from '../stores/sessionStore';
 import { evaluateAnswer, RateLimitError, generateFallbackFeedback } from '../services/gemini';
 import { useDocumentTitle } from '../hooks';
@@ -133,6 +135,9 @@ export default function ActiveSession() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isDigDeeperOpen, setIsDigDeeperOpen] = useState(false);
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
+
+  // Help panel context
+  const { openHelp } = useHelpContext();
 
   const session = sessionId ? getSession(sessionId) : undefined;
 
@@ -682,6 +687,15 @@ export default function ActiveSession() {
               </Button>
               <Button variant="ghost" onClick={handleSkip} disabled={loading}>
                 Skip
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => openHelp('session')}
+                disabled={loading}
+                className="sm:ml-auto"
+              >
+                <MaterialIcon name="help_outline" size="sm" className="mr-1" decorative />
+                Get Help
               </Button>
             </div>
           </div>
