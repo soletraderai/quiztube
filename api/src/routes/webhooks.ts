@@ -2,35 +2,11 @@ import { Router, Request, Response, NextFunction } from 'express';
 import Stripe from 'stripe';
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import nodemailer from 'nodemailer';
 import { prisma } from '../index.js';
+import { sendPromptFeedbackEmail } from '../services/email.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Create email transporter
-const createTransporter = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-  // Development: Use Mailhog
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'localhost',
-    port: parseInt(process.env.SMTP_PORT || '1025'),
-    secure: false,
-    ignoreTLS: true,
-  });
-};
-
-const transporter = createTransporter();
-const fromAddress = process.env.EMAIL_FROM || 'Teachy <noreply@teachy.app>';
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const router = Router();
@@ -78,16 +54,33 @@ router.post(
               session.subscription as string
             );
 
-            await prisma.subscription.update({
+            // Check if subscription is in trial period
+            const isTrialing = stripeSubscription.status === 'trialing';
+            const trialEnd = stripeSubscription.trial_end
+              ? new Date(stripeSubscription.trial_end * 1000)
+              : null;
+
+            await prisma.subscription.upsert({
               where: { userId },
-              data: {
+              create: {
+                userId,
                 tier: 'PRO',
-                status: 'ACTIVE',
+                status: isTrialing ? 'TRIALING' : 'ACTIVE',
+                stripeSubscriptionId: stripeSubscription.id,
+                stripeCustomerId: stripeSubscription.customer as string,
+                currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+                currentPeriodEnd: trialEnd || new Date(stripeSubscription.current_period_end * 1000),
+              },
+              update: {
+                tier: 'PRO',
+                status: isTrialing ? 'TRIALING' : 'ACTIVE',
                 stripeSubscriptionId: stripeSubscription.id,
                 currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-                currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+                currentPeriodEnd: trialEnd || new Date(stripeSubscription.current_period_end * 1000),
               },
             });
+
+            console.log(`[Stripe] Checkout completed for user ${userId}, trialing: ${isTrialing}`);
           }
           break;
         }
@@ -99,17 +92,67 @@ router.post(
           });
 
           if (dbSubscription) {
+            // Map Stripe status to our status enum
+            let status: 'ACTIVE' | 'CANCELLED' | 'PAST_DUE' | 'TRIALING';
+            switch (subscription.status) {
+              case 'trialing':
+                status = 'TRIALING';
+                break;
+              case 'active':
+                status = 'ACTIVE';
+                break;
+              case 'past_due':
+                status = 'PAST_DUE';
+                break;
+              case 'canceled':
+              case 'unpaid':
+              case 'incomplete_expired':
+                status = 'CANCELLED';
+                break;
+              default:
+                status = 'ACTIVE';
+            }
+
+            // If trial just ended and subscription is now active, update accordingly
+            const wasTrialing = dbSubscription.status === 'TRIALING';
+            const nowActive = subscription.status === 'active';
+            if (wasTrialing && nowActive) {
+              console.log(`[Stripe] Trial ended, subscription now active for ${dbSubscription.userId}`);
+            }
+
             await prisma.subscription.update({
               where: { id: dbSubscription.id },
               data: {
-                status: subscription.status === 'active' ? 'ACTIVE' :
-                        subscription.status === 'past_due' ? 'PAST_DUE' :
-                        subscription.status === 'canceled' ? 'CANCELLED' : 'ACTIVE',
+                status,
                 currentPeriodStart: new Date(subscription.current_period_start * 1000),
                 currentPeriodEnd: new Date(subscription.current_period_end * 1000),
                 cancelAtPeriodEnd: subscription.cancel_at_period_end,
               },
             });
+          }
+          break;
+        }
+
+        case 'customer.subscription.trial_will_end': {
+          // Fired 3 days before trial ends - good time to send reminder email
+          const subscription = event.data.object as Stripe.Subscription;
+          const dbSubscription = await prisma.subscription.findFirst({
+            where: { stripeSubscriptionId: subscription.id },
+            include: { user: true },
+          });
+
+          if (dbSubscription?.user) {
+            const trialEndDate = subscription.trial_end
+              ? new Date(subscription.trial_end * 1000)
+              : null;
+
+            console.log(
+              `[Stripe] Trial ending soon for ${dbSubscription.user.email}, ` +
+              `ends: ${trialEndDate?.toISOString()}`
+            );
+
+            // TODO: Send trial ending reminder email
+            // await sendTrialEndingEmail(dbSubscription.user.email, trialEndDate);
           }
           break;
         }
@@ -131,6 +174,19 @@ router.post(
                 currentPeriodEnd: null,
               },
             });
+
+            console.log(`[Stripe] Subscription deleted for user ${dbSubscription.userId}`);
+          }
+          break;
+        }
+
+        case 'invoice.payment_succeeded': {
+          const invoice = event.data.object as Stripe.Invoice;
+          const subscriptionId = invoice.subscription as string;
+
+          if (subscriptionId && invoice.billing_reason === 'subscription_cycle') {
+            // Recurring payment succeeded
+            console.log(`[Stripe] Recurring payment succeeded for subscription ${subscriptionId}`);
           }
           break;
         }
@@ -149,13 +205,15 @@ router.post(
                 where: { id: dbSubscription.id },
                 data: { status: 'PAST_DUE' },
               });
+
+              console.log(`[Stripe] Payment failed for user ${dbSubscription.userId}`);
             }
           }
           break;
         }
 
         default:
-          console.log(`Unhandled event type: ${event.type}`);
+          console.log(`[Stripe] Unhandled event type: ${event.type}`);
       }
 
       res.json({ received: true });
@@ -164,6 +222,113 @@ router.post(
     }
   }
 );
+
+// Resend webhook for email events (bounces, complaints, etc.)
+interface ResendWebhookEvent {
+  type: string;
+  created_at: string;
+  data: {
+    email_id: string;
+    from: string;
+    to: string[];
+    subject: string;
+    bounce?: {
+      message: string;
+      type: string; // 'hard' | 'soft'
+    };
+    complaint?: {
+      feedback_type: string;
+    };
+  };
+}
+
+router.post('/resend', express.json(), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const event = req.body as ResendWebhookEvent;
+
+    console.log('[Resend Webhook] Event received:', event.type);
+
+    switch (event.type) {
+      case 'email.bounced': {
+        const { to, bounce } = event.data;
+        const recipientEmail = to[0];
+
+        console.log(`[Resend] Email bounced for ${recipientEmail}:`, bounce?.message);
+
+        // Find user by email and disable email prompts on hard bounce
+        if (bounce?.type === 'hard') {
+          const user = await prisma.user.findUnique({
+            where: { email: recipientEmail },
+            include: { preferences: true },
+          });
+
+          if (user?.preferences) {
+            await prisma.userPreferences.update({
+              where: { userId: user.id },
+              data: {
+                emailPromptsEnabled: false,
+                // Store bounce reason for admin review
+              },
+            });
+            console.log(`[Resend] Disabled email prompts for ${recipientEmail} due to hard bounce`);
+          }
+        }
+        break;
+      }
+
+      case 'email.complained': {
+        const { to } = event.data;
+        const recipientEmail = to[0];
+
+        console.log(`[Resend] Spam complaint from ${recipientEmail}`);
+
+        // Disable all email communications on spam complaint
+        const user = await prisma.user.findUnique({
+          where: { email: recipientEmail },
+          include: { preferences: true },
+        });
+
+        if (user?.preferences) {
+          await prisma.userPreferences.update({
+            where: { userId: user.id },
+            data: {
+              emailPromptsEnabled: false,
+              // Could add a field for email opt-out status
+            },
+          });
+          console.log(`[Resend] Disabled email prompts for ${recipientEmail} due to spam complaint`);
+        }
+        break;
+      }
+
+      case 'email.delivered': {
+        console.log(`[Resend] Email delivered to ${event.data.to[0]}`);
+        // Could track delivery stats here
+        break;
+      }
+
+      case 'email.opened': {
+        // Track email opens for engagement metrics
+        console.log(`[Resend] Email opened by ${event.data.to[0]}`);
+        break;
+      }
+
+      case 'email.clicked': {
+        // Track link clicks for engagement metrics
+        console.log(`[Resend] Link clicked by ${event.data.to[0]}`);
+        break;
+      }
+
+      default:
+        console.log(`[Resend] Unhandled event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('[Resend Webhook] Error:', error);
+    next(error);
+  }
+});
 
 // Email inbound webhook (Resend)
 router.post('/email-inbound', express.json(), async (req: Request, res: Response, next: NextFunction) => {
@@ -317,65 +482,17 @@ Respond in JSON format:
       });
     }
 
-    // Send feedback email
-    try {
-      await transporter.sendMail({
-        from: fromAddress,
-        to: emailPrompt.user.email,
-        subject: `Feedback: ${emailPrompt.topic.name}`,
-        html: `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <style>
-                body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #1a1a1a; }
-                .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
-                .header { text-align: center; margin-bottom: 32px; }
-                .logo { font-size: 24px; font-weight: bold; color: #1a1a1a; }
-                .content { background: #fff; border: 3px solid #000; padding: 32px; box-shadow: 4px 4px 0 #000; }
-                .result { padding: 16px; margin-bottom: 16px; border: 2px solid #000; }
-                .correct { background: #d4edda; }
-                .incorrect { background: #fff3cd; }
-                .topic { background: #FFDE59; display: inline-block; padding: 4px 12px; font-size: 14px; font-weight: bold; margin-bottom: 16px; }
-                .button { display: inline-block; background: #FFDE59; color: #1a1a1a; padding: 16px 32px; text-decoration: none; font-weight: bold; border: 3px solid #000; box-shadow: 4px 4px 0 #000; margin: 24px 0; }
-                .footer { text-align: center; margin-top: 32px; color: #666; font-size: 14px; }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <div class="logo">Teachy</div>
-                </div>
-                <div class="content">
-                  <span class="topic">${emailPrompt.topic.name}</span>
-
-                  <div class="result ${isCorrect ? 'correct' : 'incorrect'}">
-                    <strong>${isCorrect ? '✓ Great answer!' : '○ Keep practicing!'}</strong>
-                  </div>
-
-                  <h3>Question</h3>
-                  <p>${emailPrompt.questionText}</p>
-
-                  <h3>Your Answer</h3>
-                  <p>${text.trim()}</p>
-
-                  <h3>Feedback</h3>
-                  <p>${feedback}</p>
-
-                  <a href="${frontendUrl}/review" class="button">Continue Learning</a>
-                </div>
-                <div class="footer">
-                  <p>&copy; ${new Date().getFullYear()} Teachy. All rights reserved.</p>
-                  <p><a href="${frontendUrl}/settings">Manage email prompts</a></p>
-                </div>
-              </div>
-            </body>
-          </html>
-        `,
-      });
-    } catch (emailError) {
-      console.error('Failed to send feedback email:', emailError);
-    }
+    // Send feedback email using the email service
+    await sendPromptFeedbackEmail(
+      emailPrompt.user.email,
+      emailPrompt.user.displayName || 'Learner',
+      emailPrompt.topic.name,
+      emailPrompt.questionText,
+      text.trim(),
+      isCorrect,
+      feedback,
+      emailPrompt.user.id
+    );
 
     res.json({ received: true });
   } catch (error) {

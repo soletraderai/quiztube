@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
+import { startScheduler } from './services/scheduler.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -203,6 +204,9 @@ const startServer = async () => {
     // Test Redis connection
     await redis.ping();
     console.log('Connected to Redis');
+
+    // Start scheduled jobs (email prompts, weekly summaries)
+    startScheduler();
 
     app.listen(PORT, () => {
       console.log(`Teachy API server running on port ${PORT}`);

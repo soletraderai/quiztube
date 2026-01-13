@@ -33,6 +33,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Batch drawing by color groups for better rendering performance
   - Layout progress indicator during calculation
   - Simple circular layout fallback for small datasets (<50 nodes)
+- **Email Infrastructure** (Phase 7):
+  - Resend SDK integration for production email delivery
+  - Bounce/failure webhook handler (`/api/webhooks/resend`)
+  - Automatic email disable on hard bounces and spam complaints
+  - node-cron scheduler for automated jobs
+  - Weekly summary emails (Sundays 10 AM UTC)
+  - Daily email prompts for Pro users (hourly, respects timezone)
+- **Notification & ML Features** (Phase 8):
+  - SM-2 spaced repetition algorithm for topic prioritization
+  - Topic priority scoring based on: overdue time, mastery level, difficulty
+  - Notification timing optimizer (respects user timezone and preferred time)
+  - Quiet hours enforcement (no notifications before 7 AM or after 10 PM)
+  - Preferred learning days support
+- **Stripe Integration** (Phase 6):
+  - Teachy Pro product with monthly ($9.99) and yearly ($99.90) pricing
+  - 14-day free trial for new Pro subscribers
+  - Trial eligibility tracking (prevents double trials)
+  - Payment method collection during trial signup
+  - Stripe Customer Portal integration for subscription management
+  - Webhook handlers for trial events (`customer.subscription.trial_will_end`)
+  - Enhanced subscription status endpoint with trial info (`isTrialing`, `trialDaysRemaining`, `eligibleForTrial`)
+  - Setup script for Stripe product/price creation (`scripts/setup-stripe-products.ts`)
 
 ### Changed
 - Migrated authentication from JWT to Supabase Auth
@@ -50,6 +72,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Console output captured via postMessage communication
   - Added 5-second execution timeout for infinite loop protection
   - Added React Error Boundary for graceful crash recovery
+- **Email service rewrite** (Phase 7):
+  - Replaced nodemailer SMTP with Resend SDK (nodemailer kept as dev fallback)
+  - Added `sendPromptFeedbackEmail` function for email prompt responses
+  - Added `validateUnsubscribeToken` helper for secure unsubscribe
+- **Webhooks enhancement** (Phase 7):
+  - Added Resend webhook handler for email.bounced, email.complained, email.delivered events
+  - Updated email-inbound webhook to use centralized email service
+- **Stripe webhook handlers enhanced** (Phase 6):
+  - `checkout.session.completed` now detects trial status and sets `TRIALING`
+  - `customer.subscription.updated` properly maps all Stripe statuses including `trialing`
+  - `customer.subscription.trial_will_end` handler added for 3-day trial ending reminder
+  - `invoice.payment_succeeded` handler added for recurring payment tracking
+  - Improved logging for all subscription events
+- **Checkout flow enhanced** (Phase 6):
+  - Added `subscription_data.trial_period_days` for eligible users
+  - Added trial metadata to checkout session
+  - Upsert pattern for subscription record creation
 
 ### Fixed
 - All 12 pre-existing TypeScript errors resolved
@@ -241,7 +280,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 0.7.0 | 2026-01-12 | Subscriptions | 169/415 (40.7%)* |
 | 0.8.0 | 2026-01-12 | Dashboard & Reviews | 290/415 (69.9%) |
 | 0.9.0 | 2026-01-13 | Pro features | 372/415 (89.6%) |
-| Unreleased | 2026-01-13 | Phases 0-5 | ~396/415 (~95%) |
+| Unreleased | 2026-01-13 | Phases 0-8 (incl. Stripe) | ~411/415 (~99%) |
 
 *Note: Feature count increased from 302 to 415 during Phase 2 planning, causing apparent progress decrease.
 

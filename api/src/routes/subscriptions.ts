@@ -17,6 +17,9 @@ const PRICES = {
   yearly: process.env.STRIPE_PRICE_YEARLY || 'price_yearly',
 };
 
+// Trial period in days (default 14 days for new users)
+const TRIAL_PERIOD_DAYS = parseInt(process.env.STRIPE_TRIAL_PERIOD_DAYS || '14', 10);
+
 // GET /api/subscriptions/status
 router.get('/status', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
@@ -24,11 +27,32 @@ router.get('/status', async (req: AuthenticatedRequest, res: Response, next: Nex
       where: { userId: req.user!.id },
     });
 
+    // Check if user is in trial period
+    const isTrialing = subscription?.status === 'TRIALING';
+    const trialEndsAt = isTrialing ? subscription?.currentPeriodEnd : null;
+
+    // Calculate days remaining in trial
+    let trialDaysRemaining = 0;
+    if (isTrialing && trialEndsAt) {
+      const now = new Date();
+      const diffMs = trialEndsAt.getTime() - now.getTime();
+      trialDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    // Check if user has ever had a trial (to prevent double trials)
+    const hasHadTrial = subscription?.stripeSubscriptionId !== null ||
+                        subscription?.status === 'TRIALING' ||
+                        subscription?.status === 'CANCELLED';
+
     res.json({
       tier: subscription?.tier || 'FREE',
       status: subscription?.status || 'ACTIVE',
       currentPeriodEnd: subscription?.currentPeriodEnd,
       cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || false,
+      isTrialing,
+      trialEndsAt,
+      trialDaysRemaining,
+      eligibleForTrial: !hasHadTrial,
     });
   } catch (error) {
     next(error);
@@ -55,6 +79,12 @@ router.post('/checkout', async (req: AuthenticatedRequest, res: Response, next: 
       throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
     }
 
+    // Check if user is eligible for trial (never had a subscription before)
+    const hasHadSubscription = user.subscription?.stripeSubscriptionId !== null ||
+                               user.subscription?.status === 'CANCELLED' ||
+                               user.subscription?.status === 'TRIALING';
+    const eligibleForTrial = !hasHadSubscription;
+
     // Get or create Stripe customer
     let customerId = user.subscription?.stripeCustomerId;
 
@@ -66,25 +96,53 @@ router.post('/checkout', async (req: AuthenticatedRequest, res: Response, next: 
       });
       customerId = customer.id;
 
-      // Update subscription with customer ID
-      await prisma.subscription.update({
+      // Upsert subscription with customer ID
+      await prisma.subscription.upsert({
         where: { userId: user.id },
-        data: { stripeCustomerId: customerId },
+        create: {
+          userId: user.id,
+          tier: 'FREE',
+          status: 'ACTIVE',
+          stripeCustomerId: customerId,
+        },
+        update: { stripeCustomerId: customerId },
       });
     }
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    // Build checkout session options
+    const sessionOptions: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: `${process.env.FRONTEND_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/pricing`,
-      metadata: { userId: user.id },
-    });
+      metadata: {
+        userId: user.id,
+        hasTrial: eligibleForTrial ? 'true' : 'false',
+      },
+      // Always collect payment method for post-trial billing
+      payment_method_collection: 'always',
+    };
 
-    res.json({ url: session.url });
+    // Add 14-day free trial for eligible users
+    if (eligibleForTrial && TRIAL_PERIOD_DAYS > 0) {
+      sessionOptions.subscription_data = {
+        trial_period_days: TRIAL_PERIOD_DAYS,
+        metadata: {
+          userId: user.id,
+        },
+      };
+    }
+
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create(sessionOptions);
+
+    res.json({
+      url: session.url,
+      hasFreeTrial: eligibleForTrial,
+      trialDays: eligibleForTrial ? TRIAL_PERIOD_DAYS : 0,
+    });
   } catch (error) {
     next(error);
   }
