@@ -180,6 +180,54 @@ router.post('/complete-onboarding', async (req: AuthenticatedRequest, res: Respo
   }
 });
 
+// GET /api/users/me/sidebar-preference
+router.get('/me/sidebar-preference', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    let preferences = await prisma.userPreferences.findUnique({
+      where: { userId: req.user!.id },
+      select: { sidebarCollapsed: true },
+    });
+
+    if (!preferences) {
+      preferences = await prisma.userPreferences.create({
+        data: { userId: req.user!.id },
+        select: { sidebarCollapsed: true },
+      });
+    }
+
+    res.json({
+      sidebar_collapsed: preferences.sidebarCollapsed,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/users/me/sidebar-preference
+router.put('/me/sidebar-preference', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { sidebar_collapsed } = req.body;
+
+    if (typeof sidebar_collapsed !== 'boolean') {
+      return res.status(400).json({ error: 'sidebar_collapsed must be a boolean' });
+    }
+
+    const preferences = await prisma.userPreferences.upsert({
+      where: { userId: req.user!.id },
+      update: { sidebarCollapsed: sidebar_collapsed },
+      create: { userId: req.user!.id, sidebarCollapsed: sidebar_collapsed },
+      select: { sidebarCollapsed: true },
+    });
+
+    res.json({
+      sidebar_collapsed: preferences.sidebarCollapsed,
+      message: 'Sidebar preference saved',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/users/migrate-local-data
 router.post('/migrate-local-data', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

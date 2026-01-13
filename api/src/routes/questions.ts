@@ -78,6 +78,117 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
   }
 });
 
+// GET /api/questions/:id/note-mapping - Get note section mapped to question
+router.get('/:id/note-mapping', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+
+    // Get question with its topic and session
+    const question = await prisma.question.findFirst({
+      where: {
+        id,
+        topic: { userId: req.user!.id },
+      },
+      include: {
+        topic: true,
+        session: {
+          include: {
+            learningNotes: true,
+          },
+        },
+        noteMappings: {
+          include: {
+            sessionNotes: true,
+          },
+        },
+      },
+    });
+
+    if (!question) {
+      throw new AppError(404, 'Question not found', 'QUESTION_NOT_FOUND');
+    }
+
+    // Check if mapping already exists
+    if (question.noteMappings.length > 0) {
+      const mapping = question.noteMappings[0];
+      const sections = mapping.sessionNotes.sections as { title: string; content: string; timestamp?: string }[] | null;
+      const section = sections?.[mapping.sectionIndex];
+
+      return res.json({
+        id: mapping.id,
+        questionId: question.id,
+        sessionNotesId: mapping.sessionNotesId,
+        sectionIndex: mapping.sectionIndex,
+        sectionTitle: section?.title || 'Unknown Section',
+        sectionContent: section?.content || '',
+        startTimestamp: section?.timestamp || null,
+        endTimestamp: null,
+        relevanceScore: mapping.relevanceScore,
+      });
+    }
+
+    // If no mapping exists but notes exist, create one
+    if (question.session.learningNotes) {
+      const sections = question.session.learningNotes.sections as { title: string; content: string; timestamp?: string }[] | null;
+
+      // Find the section that matches this question's topic
+      let sectionIndex = 0;
+      let relevanceScore = 1.0;
+
+      if (sections && sections.length > 0) {
+        const topicSectionIndex = sections.findIndex(s =>
+          s.title.toLowerCase().includes(question.topic.name.toLowerCase()) ||
+          question.topic.name.toLowerCase().includes(s.title.toLowerCase())
+        );
+
+        if (topicSectionIndex !== -1) {
+          sectionIndex = topicSectionIndex;
+        }
+      }
+
+      // Create the mapping
+      const mapping = await prisma.questionNoteMapping.create({
+        data: {
+          sessionNotesId: question.session.learningNotes.id,
+          questionId: question.id,
+          sectionIndex,
+          relevanceScore,
+        },
+      });
+
+      const section = sections?.[sectionIndex];
+
+      return res.json({
+        id: mapping.id,
+        questionId: question.id,
+        sessionNotesId: mapping.sessionNotesId,
+        sectionIndex: mapping.sectionIndex,
+        sectionTitle: section?.title || 'Unknown Section',
+        sectionContent: section?.content || '',
+        startTimestamp: section?.timestamp || null,
+        endTimestamp: null,
+        relevanceScore: mapping.relevanceScore,
+      });
+    }
+
+    // No notes available
+    res.json({
+      id: null,
+      questionId: question.id,
+      sessionNotesId: null,
+      sectionIndex: null,
+      sectionTitle: null,
+      sectionContent: null,
+      startTimestamp: null,
+      endTimestamp: null,
+      relevanceScore: null,
+      message: 'No learning notes available for this session',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/questions/:id/answer
 router.post('/:id/answer', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

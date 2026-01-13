@@ -33,19 +33,23 @@ model User {
   lastActiveAt            DateTime  @default(now()) @map("last_active_at")
 
   // Relations
-  preferences      UserPreferences?
-  subscription     Subscription?
-  usageTracking    UsageTracking[]
-  refreshTokens    RefreshToken[]
-  sessions         Session[]
-  topics           Topic[]
-  followedChannels FollowedChannel[]
-  learningModel    LearningModel?
-  dailyRecords     DailyRecord[]
-  goals            Goal[]
-  emailPrompts     EmailPrompt[]
-  codeSnippets     CodeSnippet[]
-  timedSessions    TimedSession[]
+  preferences        UserPreferences?
+  subscription       Subscription?
+  usageTracking      UsageTracking[]
+  refreshTokens      RefreshToken[]
+  sessions           Session[]
+  topics             Topic[]
+  followedChannels   FollowedChannel[]
+  learningModel      LearningModel?
+  dailyRecords       DailyRecord[]
+  goals              Goal[]
+  emailPrompts       EmailPrompt[]
+  codeSnippets       CodeSnippet[]
+  timedSessions      TimedSession[]
+  creatorEngagements CreatorEngagement[]
+  searchLogs         SearchLog[]
+  recentSearches     RecentSearch[]
+  learningPaths      LearningPath[]
 
   @@map("users")
 }
@@ -69,6 +73,7 @@ model UserPreferences {
   onboardingCompleted     Boolean  @default(false) @map("onboarding_completed")
   onboardingStep          Int      @default(0) @map("onboarding_step")
   maxDailyReviews         Int      @default(20) @map("max_daily_reviews")
+  sidebarCollapsed        Boolean  @default(false) @map("sidebar_collapsed")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -198,14 +203,19 @@ model Session {
   recommendations    String[]      @default([]) @map("recommendations")
   localSessionId     String?       @map("local_session_id")
   sessionData        Json?         @map("session_data")
+  hasLearningNotes   Boolean       @default(false) @map("has_learning_notes")
+  codeContentDetected Boolean      @default(false) @map("code_content_detected")
+  creatorEngagementPrompted Boolean @default(false) @map("creator_engagement_prompted")
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sources      SessionSource[]
-  topics       Topic[]
-  questions    Question[]
-  codeSnippets CodeSnippet[]
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sources            SessionSource[]
+  topics             Topic[]
+  questions          Question[]
+  codeSnippets       CodeSnippet[]
+  learningNotes      SessionLearningNotes?
+  creatorEngagements CreatorEngagement[]
 
   @@map("sessions")
 }
@@ -294,8 +304,9 @@ model Question {
   answeredAt      DateTime?        @map("answered_at")
   createdAt       DateTime         @default(now()) @map("created_at")
 
-  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  topic        Topic                 @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  session      Session               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  noteMappings QuestionNoteMapping[]
 
   @@map("questions")
 }
@@ -537,4 +548,159 @@ enum TimedSessionStatus {
   ACTIVE
   COMPLETED
   ABANDONED
+}
+
+// ============================================
+// Session Learning Notes (AI-Generated)
+// ============================================
+
+model SessionLearningNotes {
+  id            String   @id @default(uuid())
+  sessionId     String   @unique @map("session_id")
+  notesMarkdown String   @map("notes_markdown") @db.Text
+  sections      Json?    // JSON array of section objects with title, content, timestamps
+  codeDetected  Boolean  @default(false) @map("code_detected")
+  generatedAt   DateTime @default(now()) @map("generated_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  session            Session               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionNoteMappings QuestionNoteMapping[]
+
+  @@map("session_learning_notes")
+}
+
+model QuestionNoteMapping {
+  id               String   @id @default(uuid())
+  sessionNotesId   String   @map("session_notes_id")
+  questionId       String   @map("question_id")
+  sectionIndex     Int      @map("section_index")
+  relevanceScore   Float    @default(1.0) @map("relevance_score")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  sessionNotes SessionLearningNotes @relation(fields: [sessionNotesId], references: [id], onDelete: Cascade)
+  question     Question             @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionNotesId, questionId])
+  @@index([questionId], map: "idx_question_note_mappings_question")
+  @@map("question_note_mappings")
+}
+
+// ============================================
+// Creator Engagements (Like/Comment/Subscribe Tracking)
+// ============================================
+
+model CreatorEngagement {
+  id             String         @id @default(uuid())
+  userId         String         @map("user_id")
+  sessionId      String         @map("session_id")
+  channelId      String         @map("channel_id")
+  engagementType EngagementType @map("engagement_type")
+  clickedAt      DateTime       @default(now()) @map("clicked_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sessionId], map: "idx_creator_engagements_user_session")
+  @@map("creator_engagements")
+}
+
+enum EngagementType {
+  LIKE
+  COMMENT
+  SUBSCRIBE
+}
+
+// ============================================
+// Search Logs (Query Tracking)
+// ============================================
+
+model SearchLog {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  query            String
+  resultsCount     Int       @map("results_count")
+  selectedResultId String?   @map("selected_result_id")
+  searchedAt       DateTime  @default(now()) @map("searched_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, searchedAt], map: "idx_search_logs_user_date")
+  @@map("search_logs")
+}
+
+// ============================================
+// Recent Searches (User Search History)
+// ============================================
+
+model RecentSearch {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  query     String
+  searchedAt DateTime @default(now()) @map("searched_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, query])
+  @@map("recent_searches")
+}
+
+// ============================================
+// Learning Paths (User Learning Goals)
+// ============================================
+
+model LearningPath {
+  id             String            @id @default(uuid())
+  userId         String            @map("user_id")
+  title          String
+  description    String?
+  status         LearningPathStatus @default(ACTIVE)
+  itemsTotal     Int               @default(0) @map("items_total")
+  itemsCompleted Int               @default(0) @map("items_completed")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items LearningPathItem[]
+
+  @@map("learning_paths")
+}
+
+enum LearningPathStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  ARCHIVED
+}
+
+model LearningPathItem {
+  id             String               @id @default(uuid())
+  learningPathId String               @map("learning_path_id")
+  videoId        String?              @map("video_id")
+  videoUrl       String?              @map("video_url")
+  videoTitle     String?              @map("video_title")
+  videoThumbnail String?              @map("video_thumbnail")
+  channelName    String?              @map("channel_name")
+  status         LearningPathItemStatus @default(PENDING)
+  sortOrder      Int                  @default(0) @map("sort_order")
+  completedAt    DateTime?            @map("completed_at")
+  skipped        Boolean              @default(false)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+
+  @@index([learningPathId, sortOrder], map: "idx_learning_path_items_path_order")
+  @@map("learning_path_items")
+}
+
+enum LearningPathItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
 }

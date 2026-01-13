@@ -12,11 +12,30 @@ import LearningPathCard, { type LearningPathData } from '../components/ui/Learni
 import { StaggeredItem } from '../components/ui/StaggeredList';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDocumentTitle } from '../hooks';
+import { apiFetch } from '../services/api';
 
 interface NewPathFormData {
   title: string;
   description: string;
   category: string;
+}
+
+interface AIRecommendation {
+  order: number;
+  title: string;
+  searchQuery: string;
+  channel: string;
+  duration: string;
+  reason: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+}
+
+interface AILearningPath {
+  pathTitle: string;
+  pathDescription: string;
+  estimatedDuration: string;
+  recommendations: AIRecommendation[];
+  milestones: { afterVideo: number; achievement: string }[];
 }
 
 export default function LearningPaths() {
@@ -31,6 +50,9 @@ export default function LearningPaths() {
     category: '',
   });
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'paused'>('all');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiPath, setAiPath] = useState<AILearningPath | null>(null);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false);
 
   // Generate learning paths from session data
   const generateLearningPaths = (): LearningPathData[] => {
@@ -107,19 +129,47 @@ export default function LearningPaths() {
     ? allPaths
     : allPaths.filter(path => path.status === filter);
 
-  const handleCreatePath = () => {
+  const handleCreatePath = async () => {
     if (!formData.title.trim()) {
       setToast({ message: 'Please enter a title for your learning path', type: 'error' });
       return;
     }
 
-    // For now, show a message since we're working with local data
-    setToast({
-      message: 'Learning paths are generated from your session topics. Start learning videos on this topic to build your path!',
-      type: 'info'
-    });
+    setIsGenerating(true);
     setShowCreateModal(false);
-    setFormData({ title: '', description: '', category: '' });
+
+    try {
+      // Get existing videos user has watched
+      const existingVideos = library.sessions.map(session => ({
+        title: session.video.title,
+        channel: session.video.channel,
+      }));
+
+      // Call AI to generate learning path
+      const response = await apiFetch<AILearningPath>('/ai/generate-learning-path', {
+        method: 'POST',
+        body: JSON.stringify({
+          goal: formData.title,
+          topic: formData.category || formData.title,
+          existingVideos,
+          preferredDuration: 'medium',
+        }),
+      });
+
+      setAiPath(response);
+      setShowAIRecommendations(true);
+      setToast({ message: 'AI generated your personalized learning path!', type: 'success' });
+    } catch (error) {
+      console.error('Failed to generate AI learning path:', error);
+      // Fallback message
+      setToast({
+        message: 'Learning paths are generated from your session topics. Start learning videos on this topic to build your path!',
+        type: 'info'
+      });
+    } finally {
+      setIsGenerating(false);
+      setFormData({ title: '', description: '', category: '' });
+    }
   };
 
   const handlePathClick = (pathId: string) => {
@@ -186,10 +236,143 @@ export default function LearningPaths() {
               <Button variant="secondary" onClick={() => setShowCreateModal(false)} className="flex-1">
                 Cancel
               </Button>
-              <Button onClick={handleCreatePath} className="flex-1">
-                Create
+              <Button onClick={handleCreatePath} disabled={isGenerating} className="flex-1">
+                {isGenerating ? (
+                  <>
+                    <span className="material-icons animate-spin mr-2 text-base" aria-hidden="true">autorenew</span>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-icons mr-2 text-base" aria-hidden="true">auto_awesome</span>
+                    Generate with AI
+                  </>
+                )}
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* AI Recommendations Modal */}
+      {showAIRecommendations && aiPath && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Card className="w-full max-w-2xl my-8">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-icons text-primary" aria-hidden="true">auto_awesome</span>
+                  <h2 className="font-heading text-xl font-bold text-text">AI-Generated Learning Path</h2>
+                </div>
+                <h3 className="font-heading text-lg text-text">{aiPath.pathTitle}</h3>
+                <p className="text-text/70 text-sm mt-1">{aiPath.pathDescription}</p>
+              </div>
+              <button
+                onClick={() => setShowAIRecommendations(false)}
+                className="p-1 hover:bg-text/10 transition-colors"
+                aria-label="Close"
+              >
+                <span className="material-icons" aria-hidden="true">close</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 mb-4 text-sm text-text/70">
+              <span className="flex items-center gap-1">
+                <span className="material-icons text-base" aria-hidden="true">schedule</span>
+                {aiPath.estimatedDuration}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="material-icons text-base" aria-hidden="true">video_library</span>
+                {aiPath.recommendations.length} videos
+              </span>
+            </div>
+
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+              {aiPath.recommendations.map((rec, index) => (
+                <div
+                  key={index}
+                  className={`p-3 border-2 border-border bg-surface hover:shadow-brutal transition-all cursor-pointer ${
+                    rec.difficulty === 'beginner' ? 'border-l-success border-l-4' :
+                    rec.difficulty === 'intermediate' ? 'border-l-primary border-l-4' :
+                    'border-l-error border-l-4'
+                  }`}
+                  onClick={() => {
+                    // Open YouTube search for this video
+                    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(rec.searchQuery)}`, '_blank');
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold bg-text text-background px-2 py-0.5">
+                          {rec.order}
+                        </span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 ${
+                          rec.difficulty === 'beginner' ? 'bg-success/20 text-success' :
+                          rec.difficulty === 'intermediate' ? 'bg-primary/20 text-text' :
+                          'bg-error/20 text-error'
+                        }`}>
+                          {rec.difficulty}
+                        </span>
+                      </div>
+                      <h4 className="font-heading font-bold text-text">{rec.title}</h4>
+                      <p className="text-xs text-text/60 mt-1">{rec.channel} • {rec.duration}</p>
+                      <p className="text-sm text-text/70 mt-2">{rec.reason}</p>
+                    </div>
+                    <span className="material-icons text-text/40" aria-hidden="true">open_in_new</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {aiPath.milestones.length > 0 && (
+              <div className="mt-4 pt-4 border-t-2 border-border">
+                <h4 className="font-heading font-bold text-text mb-2 flex items-center gap-2">
+                  <span className="material-icons text-primary" aria-hidden="true">flag</span>
+                  Milestones
+                </h4>
+                <div className="space-y-2">
+                  {aiPath.milestones.map((milestone, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <span className="text-primary font-bold">After video {milestone.afterVideo}:</span>
+                      <span className="text-text/70">{milestone.achievement}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <Button variant="secondary" onClick={() => setShowAIRecommendations(false)} className="flex-1">
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  // Open first video search
+                  if (aiPath.recommendations[0]) {
+                    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(aiPath.recommendations[0].searchQuery)}`, '_blank');
+                  }
+                  setShowAIRecommendations(false);
+                }}
+                className="flex-1"
+              >
+                <span className="material-icons mr-2 text-base" aria-hidden="true">play_arrow</span>
+                Start Learning
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="text-center py-8 px-12">
+            <span className="material-icons text-5xl text-primary animate-spin mb-4" aria-hidden="true">
+              autorenew
+            </span>
+            <h3 className="font-heading text-xl font-bold text-text mb-2">Generating Your Path</h3>
+            <p className="text-text/70">AI is creating a personalized learning path for you...</p>
           </Card>
         </div>
       )}

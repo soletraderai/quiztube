@@ -2,7 +2,7 @@
  * LearningPathDetail Page
  * View details of a specific learning path
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -11,6 +11,9 @@ import Toast from '../components/ui/Toast';
 import { StaggeredItem } from '../components/ui/StaggeredList';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDocumentTitle } from '../hooks';
+
+// Storage key for learning path item order
+const getOrderStorageKey = (pathId: string) => `quiztube-path-order-${pathId}`;
 
 interface PathItem {
   id: string;
@@ -31,6 +34,31 @@ export default function LearningPathDetail() {
   const navigate = useNavigate();
   const { library, updateSession } = useSessionStore();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [customOrder, setCustomOrder] = useState<string[]>([]);
+  const [isReordering, setIsReordering] = useState(false);
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+
+  // Load custom order from localStorage
+  useEffect(() => {
+    if (pathId) {
+      const stored = localStorage.getItem(getOrderStorageKey(pathId));
+      if (stored) {
+        try {
+          setCustomOrder(JSON.parse(stored));
+        } catch {
+          setCustomOrder([]);
+        }
+      }
+    }
+  }, [pathId]);
+
+  // Save custom order to localStorage
+  const saveOrder = useCallback((order: string[]) => {
+    if (pathId) {
+      localStorage.setItem(getOrderStorageKey(pathId), JSON.stringify(order));
+      setCustomOrder(order);
+    }
+  }, [pathId]);
 
   // Generate path data from sessions
   const pathData = useMemo(() => {
@@ -67,6 +95,20 @@ export default function LearningPathDetail() {
 
     if (items.length === 0) return null;
 
+    // Apply custom order if exists
+    let orderedItems = items;
+    if (customOrder.length > 0) {
+      orderedItems = [...items].sort((a, b) => {
+        const aIndex = customOrder.indexOf(a.id);
+        const bIndex = customOrder.indexOf(b.id);
+        // Items not in custom order go to the end
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+    }
+
     const totalItems = items.length;
     const completedItems = items.filter(i => i.completed).length;
     const skippedItems = items.filter(i => i.skipped).length;
@@ -76,7 +118,7 @@ export default function LearningPathDetail() {
       id: pathId,
       title: pathTitle,
       category: pathCategory,
-      items,
+      items: orderedItems,
       totalItems,
       completedItems,
       skippedItems,
@@ -84,7 +126,7 @@ export default function LearningPathDetail() {
       totalQuestions: items.reduce((acc, i) => acc + i.questionsTotal, 0),
       answeredQuestions: items.reduce((acc, i) => acc + i.questionsAnswered, 0),
     };
-  }, [pathId, library.sessions]);
+  }, [pathId, library.sessions, customOrder]);
 
   // Handle skipping a topic
   const handleSkipTopic = (sessionId: string, topicId: string, topicTitle: string) => {
@@ -110,6 +152,63 @@ export default function LearningPathDetail() {
 
     updateSession(sessionId, { topics: updatedTopics });
     setToast({ message: `"${topicTitle}" restored to path`, type: 'success' });
+  };
+
+  // Handle moving an item up
+  const handleMoveUp = (_itemId: string, currentIndex: number) => {
+    if (currentIndex === 0 || !pathData) return;
+    const currentOrderIds = pathData.items.map(i => i.id);
+    const newOrder = [...currentOrderIds];
+    [newOrder[currentIndex - 1], newOrder[currentIndex]] = [newOrder[currentIndex], newOrder[currentIndex - 1]];
+    saveOrder(newOrder);
+    setToast({ message: 'Item moved up', type: 'success' });
+  };
+
+  // Handle moving an item down
+  const handleMoveDown = (_itemId: string, currentIndex: number) => {
+    if (!pathData || currentIndex === pathData.items.length - 1) return;
+    const currentOrderIds = pathData.items.map(i => i.id);
+    const newOrder = [...currentOrderIds];
+    [newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]];
+    saveOrder(newOrder);
+    setToast({ message: 'Item moved down', type: 'success' });
+  };
+
+  // Handle drag start
+  const handleDragStart = (e: React.DragEvent, itemId: string) => {
+    setDraggedItem(itemId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // Handle drag over
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  // Handle drop
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedItem || draggedItem === targetId || !pathData) return;
+
+    const currentOrderIds = pathData.items.map(i => i.id);
+    const draggedIndex = currentOrderIds.indexOf(draggedItem);
+    const targetIndex = currentOrderIds.indexOf(targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newOrder = [...currentOrderIds];
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, draggedItem);
+
+    saveOrder(newOrder);
+    setDraggedItem(null);
+    setToast({ message: 'Order updated', type: 'success' });
+  };
+
+  // Handle drag end
+  const handleDragEnd = () => {
+    setDraggedItem(null);
   };
 
   useDocumentTitle(pathData?.title || 'Learning Path');
@@ -223,7 +322,20 @@ export default function LearningPathDetail() {
 
       {/* Topics List */}
       <div className="space-y-4">
-        <h2 className="font-heading text-xl font-bold text-text">Topics in This Path</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-xl font-bold text-text">Topics in This Path</h2>
+          <button
+            onClick={() => setIsReordering(!isReordering)}
+            className={`flex items-center gap-1 px-3 py-1.5 text-sm font-semibold border-2 border-border transition-all ${
+              isReordering ? 'bg-primary shadow-brutal' : 'bg-surface hover:shadow-brutal'
+            }`}
+          >
+            <span className="material-icons text-base" aria-hidden="true">
+              {isReordering ? 'check' : 'swap_vert'}
+            </span>
+            {isReordering ? 'Done' : 'Reorder'}
+          </button>
+        </div>
 
         <div className="space-y-4">
           {pathData.items.map((item, index) => (
@@ -232,13 +344,52 @@ export default function LearningPathDetail() {
                 className={`transition-all hover:shadow-brutal ${
                   item.completed ? 'border-success/50 bg-success/5' :
                   item.skipped ? 'border-text/20 bg-text/5 opacity-60' : ''
-                }`}
+                } ${draggedItem === item.id ? 'opacity-50 scale-95' : ''}`}
+                draggable={isReordering}
+                onDragStart={(e) => handleDragStart(e, item.id)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, item.id)}
+                onDragEnd={handleDragEnd}
               >
                 <div className="flex items-start gap-4">
+                  {/* Reorder Controls */}
+                  {isReordering && (
+                    <div className="flex flex-col items-center justify-center gap-1 py-2">
+                      <button
+                        onClick={() => handleMoveUp(item.id, index)}
+                        disabled={index === 0}
+                        className={`p-1 border border-border transition-colors ${
+                          index === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-primary/20'
+                        }`}
+                        aria-label="Move up"
+                      >
+                        <span className="material-icons text-sm" aria-hidden="true">keyboard_arrow_up</span>
+                      </button>
+                      <span className="material-icons text-text/40 cursor-grab" aria-hidden="true">drag_indicator</span>
+                      <button
+                        onClick={() => handleMoveDown(item.id, index)}
+                        disabled={index === pathData.items.length - 1}
+                        className={`p-1 border border-border transition-colors ${
+                          index === pathData.items.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-primary/20'
+                        }`}
+                        aria-label="Move down"
+                      >
+                        <span className="material-icons text-sm" aria-hidden="true">keyboard_arrow_down</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Order Number */}
+                  {!isReordering && (
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-text text-background font-bold text-sm">
+                      {index + 1}
+                    </div>
+                  )}
+
                   {/* Thumbnail */}
                   <div
                     className="w-24 h-16 flex-shrink-0 bg-border/20 border-2 border-border overflow-hidden cursor-pointer"
-                    onClick={() => navigate(`/session/${item.sessionId}/notes`)}
+                    onClick={() => !isReordering && navigate(`/session/${item.sessionId}/notes`)}
                   >
                     {item.videoThumbnail ? (
                       <img
@@ -257,8 +408,8 @@ export default function LearningPathDetail() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div
-                        className="flex-1 min-w-0 cursor-pointer"
-                        onClick={() => navigate(`/session/${item.sessionId}/notes`)}
+                        className={`flex-1 min-w-0 ${isReordering ? '' : 'cursor-pointer'}`}
+                        onClick={() => !isReordering && navigate(`/session/${item.sessionId}/notes`)}
                       >
                         <h3 className={`font-heading font-bold truncate ${item.skipped ? 'text-text/50 line-through' : 'text-text'}`}>
                           {item.title}

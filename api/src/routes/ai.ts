@@ -305,6 +305,102 @@ Provide a helpful, educational response.`;
   }
 });
 
+// POST /api/ai/generate-learning-path - Generate AI-recommended learning path
+router.post('/generate-learning-path', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const rateLimit = await aiRateLimit(req.user!.id, req.user!.tier);
+    if (!rateLimit.allowed) {
+      throw new AppError(429, 'AI rate limit exceeded', 'RATE_LIMITED');
+    }
+
+    const { goal, topic, existingVideos = [], preferredDuration = 'medium' } = req.body;
+
+    if (!goal && !topic) {
+      throw new AppError(400, 'Either goal or topic is required', 'INVALID_INPUT');
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    // Build context from existing videos
+    const existingContext = existingVideos.length > 0
+      ? `\nUser has already watched these videos:\n${existingVideos.map((v: { title: string; channel: string }) => `- ${v.title} by ${v.channel}`).join('\n')}\n\nSuggest videos that build upon this knowledge without repeating content.`
+      : '';
+
+    const durationGuide = {
+      short: '5-10 videos for quick overview',
+      medium: '10-20 videos for comprehensive learning',
+      long: '20-30 videos for deep mastery',
+    };
+
+    const prompt = `You are a learning path generator. Create an ordered list of recommended YouTube videos for learning.
+
+Learning Goal: ${goal || `Master ${topic}`}
+Topic Area: ${topic || 'derived from goal'}
+Recommended Path Length: ${durationGuide[preferredDuration as keyof typeof durationGuide] || durationGuide.medium}${existingContext}
+
+Generate a structured learning path with videos in logical order from beginner to advanced.
+Include a mix of:
+- Foundational concepts (start here)
+- Core skills and techniques
+- Practical applications and projects
+- Advanced topics (for deepening knowledge)
+
+Return JSON:
+{
+  "pathTitle": "Descriptive title for this learning path",
+  "pathDescription": "Brief description of what the learner will achieve",
+  "estimatedDuration": "X hours total",
+  "recommendations": [
+    {
+      "order": 1,
+      "title": "Suggested video title/topic",
+      "searchQuery": "YouTube search query to find this video",
+      "channel": "Recommended channel if known (or 'Any quality channel')",
+      "duration": "Estimated video length (e.g., '15 min')",
+      "reason": "Why this video is recommended at this point",
+      "difficulty": "beginner" | "intermediate" | "advanced"
+    }
+  ],
+  "milestones": [
+    {
+      "afterVideo": 3,
+      "achievement": "What the learner can do after reaching this point"
+    }
+  ]
+}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Track usage
+    await prisma.usageTracking.upsert({
+      where: {
+        userId_periodStart: {
+          userId: req.user!.id,
+          periodStart: new Date(new Date().setDate(1)),
+        },
+      },
+      update: { aiRequestsCount: { increment: 1 } },
+      create: {
+        userId: req.user!.id,
+        periodStart: new Date(new Date().setDate(1)),
+        periodEnd: new Date(new Date().setMonth(new Date().getMonth() + 1, 0)),
+        aiRequestsCount: 1,
+      },
+    });
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new AppError(500, 'Failed to parse AI response', 'AI_PARSE_ERROR');
+    }
+
+    res.json(JSON.parse(jsonMatch[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/ai/evaluate-timed-answer - Quick evaluation for timed sessions
 router.post('/evaluate-timed-answer', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

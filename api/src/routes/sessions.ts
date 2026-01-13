@@ -361,6 +361,315 @@ router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, ne
   }
 });
 
+// GET /api/sessions/:id/notes - Get or generate learning notes for a session
+router.get('/:id/notes', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+
+    // Verify session belongs to user
+    const session = await prisma.session.findFirst({
+      where: { id, userId: req.user!.id },
+      include: {
+        topics: { include: { questions: true } },
+        learningNotes: true,
+      },
+    });
+
+    if (!session) {
+      throw new AppError(404, 'Session not found', 'SESSION_NOT_FOUND');
+    }
+
+    // If notes already exist, return them
+    if (session.learningNotes) {
+      return res.json({
+        id: session.learningNotes.id,
+        sessionId: session.id,
+        notesMarkdown: session.learningNotes.notesMarkdown,
+        sections: session.learningNotes.sections,
+        codeDetected: session.learningNotes.codeDetected,
+        generatedAt: session.learningNotes.generatedAt,
+      });
+    }
+
+    // Generate notes from session data
+    const sections: { title: string; content: string; timestamp?: string }[] = [];
+    let notesMarkdown = `# Learning Notes: ${session.videoTitle}\n\n`;
+    notesMarkdown += `**Video:** ${session.videoTitle}\n`;
+    notesMarkdown += `**Channel:** ${session.channelName}\n`;
+    notesMarkdown += `**Date:** ${session.createdAt.toLocaleDateString()}\n\n`;
+
+    // Add overview section
+    notesMarkdown += `## Overview\n\n`;
+    if (session.aiSummary) {
+      notesMarkdown += `${session.aiSummary}\n\n`;
+    } else {
+      notesMarkdown += `This session covered ${session.topics.length} topics with ${session.questionsAnswered} questions answered.\n\n`;
+    }
+    sections.push({
+      title: 'Overview',
+      content: session.aiSummary || `This session covered ${session.topics.length} topics.`,
+    });
+
+    // Add key takeaways if available
+    if (session.keyTakeaways && session.keyTakeaways.length > 0) {
+      notesMarkdown += `## Key Takeaways\n\n`;
+      session.keyTakeaways.forEach((takeaway) => {
+        notesMarkdown += `- ${takeaway}\n`;
+      });
+      notesMarkdown += '\n';
+      sections.push({
+        title: 'Key Takeaways',
+        content: session.keyTakeaways.join('\n'),
+      });
+    }
+
+    // Add topics and Q&A
+    let codeDetected = false;
+    session.topics.forEach((topic, index) => {
+      notesMarkdown += `## ${index + 1}. ${topic.name}\n\n`;
+      if (topic.description) {
+        notesMarkdown += `${topic.description}\n\n`;
+      }
+
+      const topicContent: string[] = [];
+      if (topic.description) {
+        topicContent.push(topic.description);
+      }
+
+      // Add questions and answers
+      const answeredQuestions = topic.questions.filter((q) => q.userAnswer);
+      if (answeredQuestions.length > 0) {
+        notesMarkdown += `### Questions & Answers\n\n`;
+        answeredQuestions.forEach((q) => {
+          notesMarkdown += `**Q:** ${q.questionText}\n\n`;
+          notesMarkdown += `**Your Answer:** ${q.userAnswer}\n\n`;
+          if (q.feedback) {
+            notesMarkdown += `**Feedback:** ${q.feedback}\n\n`;
+          }
+          notesMarkdown += `---\n\n`;
+
+          // Check for code in answers
+          if (q.userAnswer && (q.userAnswer.includes('```') || q.userAnswer.includes('function ') || q.userAnswer.includes('const ') || q.userAnswer.includes('let '))) {
+            codeDetected = true;
+          }
+
+          topicContent.push(`Q: ${q.questionText}\nA: ${q.userAnswer}`);
+        });
+      }
+
+      sections.push({
+        title: topic.name,
+        content: topicContent.join('\n\n'),
+      });
+    });
+
+    // Add recommendations if available
+    if (session.recommendations && session.recommendations.length > 0) {
+      notesMarkdown += `## Next Steps\n\n`;
+      session.recommendations.forEach((rec) => {
+        notesMarkdown += `- ${rec}\n`;
+      });
+      sections.push({
+        title: 'Next Steps',
+        content: session.recommendations.join('\n'),
+      });
+    }
+
+    // Save the generated notes
+    const learningNotes = await prisma.sessionLearningNotes.create({
+      data: {
+        sessionId: session.id,
+        notesMarkdown,
+        sections,
+        codeDetected,
+      },
+    });
+
+    res.json({
+      id: learningNotes.id,
+      sessionId: session.id,
+      notesMarkdown: learningNotes.notesMarkdown,
+      sections: learningNotes.sections,
+      codeDetected: learningNotes.codeDetected,
+      generatedAt: learningNotes.generatedAt,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/sessions/:id/notes/generate - Force regenerate learning notes
+router.post('/:id/notes/generate', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const startTime = Date.now();
+
+    // Verify session belongs to user
+    const session = await prisma.session.findFirst({
+      where: { id, userId: req.user!.id },
+      include: {
+        topics: { include: { questions: true } },
+        learningNotes: true,
+      },
+    });
+
+    if (!session) {
+      throw new AppError(404, 'Session not found', 'SESSION_NOT_FOUND');
+    }
+
+    // Delete existing notes if they exist
+    if (session.learningNotes) {
+      await prisma.sessionLearningNotes.delete({
+        where: { id: session.learningNotes.id },
+      });
+    }
+
+    // Generate notes from session data
+    const sections: { title: string; content: string; timestamp?: string }[] = [];
+    let notesMarkdown = `# Learning Notes: ${session.videoTitle}\n\n`;
+    notesMarkdown += `**Video:** ${session.videoTitle}\n`;
+    notesMarkdown += `**Channel:** ${session.channelName}\n`;
+    notesMarkdown += `**Date:** ${session.createdAt.toLocaleDateString()}\n`;
+    notesMarkdown += `**Regenerated:** ${new Date().toLocaleString()}\n\n`;
+
+    // Add overview section
+    notesMarkdown += `## Overview\n\n`;
+    if (session.aiSummary) {
+      notesMarkdown += `${session.aiSummary}\n\n`;
+    } else {
+      notesMarkdown += `This session covered ${session.topics.length} topics with ${session.questionsAnswered} questions answered.\n\n`;
+    }
+    sections.push({
+      title: 'Overview',
+      content: session.aiSummary || `This session covered ${session.topics.length} topics.`,
+    });
+
+    // Add key takeaways if available
+    if (session.keyTakeaways && session.keyTakeaways.length > 0) {
+      notesMarkdown += `## Key Takeaways\n\n`;
+      session.keyTakeaways.forEach((takeaway) => {
+        notesMarkdown += `- ${takeaway}\n`;
+      });
+      notesMarkdown += '\n';
+      sections.push({
+        title: 'Key Takeaways',
+        content: session.keyTakeaways.join('\n'),
+      });
+    }
+
+    // Add topics and Q&A
+    let codeDetected = false;
+    session.topics.forEach((topic, index) => {
+      notesMarkdown += `## ${index + 1}. ${topic.name}\n\n`;
+      if (topic.description) {
+        notesMarkdown += `${topic.description}\n\n`;
+      }
+
+      const topicContent: string[] = [];
+      if (topic.description) {
+        topicContent.push(topic.description);
+      }
+
+      // Add questions and answers
+      const answeredQuestions = topic.questions.filter((q) => q.userAnswer);
+      if (answeredQuestions.length > 0) {
+        notesMarkdown += `### Questions & Answers\n\n`;
+        answeredQuestions.forEach((q) => {
+          notesMarkdown += `**Q:** ${q.questionText}\n\n`;
+          notesMarkdown += `**Your Answer:** ${q.userAnswer}\n\n`;
+          if (q.feedback) {
+            notesMarkdown += `**Feedback:** ${q.feedback}\n\n`;
+          }
+          notesMarkdown += `---\n\n`;
+
+          // Check for code in answers
+          if (q.userAnswer && (q.userAnswer.includes('```') || q.userAnswer.includes('function ') || q.userAnswer.includes('const ') || q.userAnswer.includes('let '))) {
+            codeDetected = true;
+          }
+
+          topicContent.push(`Q: ${q.questionText}\nA: ${q.userAnswer}`);
+        });
+      }
+
+      sections.push({
+        title: topic.name,
+        content: topicContent.join('\n\n'),
+      });
+    });
+
+    // Add recommendations if available
+    if (session.recommendations && session.recommendations.length > 0) {
+      notesMarkdown += `## Next Steps\n\n`;
+      session.recommendations.forEach((rec) => {
+        notesMarkdown += `- ${rec}\n`;
+      });
+      sections.push({
+        title: 'Next Steps',
+        content: session.recommendations.join('\n'),
+      });
+    }
+
+    // Save the generated notes
+    const learningNotes = await prisma.sessionLearningNotes.create({
+      data: {
+        sessionId: session.id,
+        notesMarkdown,
+        sections,
+        codeDetected,
+      },
+    });
+
+    const generationDurationMs = Date.now() - startTime;
+
+    res.json({
+      id: learningNotes.id,
+      sessionId: session.id,
+      notesMarkdown: learningNotes.notesMarkdown,
+      sections: learningNotes.sections,
+      codeDetected: learningNotes.codeDetected,
+      generatedAt: learningNotes.generatedAt,
+      generationDurationMs,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/sessions/:id/creator - Get creator info for session's video
+router.get('/:id/creator', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+
+    const session = await prisma.session.findFirst({
+      where: { id, userId: req.user!.id },
+    });
+
+    if (!session) {
+      throw new AppError(404, 'Session not found', 'SESSION_NOT_FOUND');
+    }
+
+    // Check if user follows this channel
+    const followedChannel = await prisma.followedChannel.findFirst({
+      where: {
+        userId: req.user!.id,
+        channelId: session.channelId,
+      },
+    });
+
+    res.json({
+      channelId: session.channelId,
+      channelName: session.channelName,
+      channelThumbnail: null, // Would need to fetch from YouTube API
+      videoUrl: session.videoUrl,
+      videoTitle: session.videoTitle,
+      isFollowing: !!followedChannel,
+      sessionsCompleted: followedChannel?.sessionsCompleted || 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/sessions/:id/summary
 router.get('/:id/summary', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

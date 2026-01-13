@@ -26,6 +26,10 @@ import questionRoutes from './routes/questions.js';
 import webhookRoutes from './routes/webhooks.js';
 import validateRoutes from './routes/validate.js';
 import notificationRoutes from './routes/notifications.js';
+import searchRoutes from './routes/search.js';
+import engagementRoutes from './routes/engagements.js';
+import recommendationRoutes from './routes/recommendations.js';
+import learningPathRoutes from './routes/learningPaths.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -169,6 +173,10 @@ app.use('/api/knowledge-map', authMiddleware, knowledgeMapRoutes);
 app.use('/api/code', authMiddleware, codeRoutes);
 app.use('/api/timed-sessions', authMiddleware, timedSessionRoutes);
 app.use('/api/questions', authMiddleware, questionRoutes);
+app.use('/api/search', authMiddleware, searchRoutes);
+app.use('/api/engagements', authMiddleware, engagementRoutes);
+app.use('/api/recommendations', authMiddleware, recommendationRoutes);
+app.use('/api/learning-paths', authMiddleware, learningPathRoutes);
 app.use('/api/validate', validateRoutes);
 app.use('/api/notifications', notificationRoutes);
 
