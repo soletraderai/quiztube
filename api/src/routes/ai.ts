@@ -78,6 +78,7 @@ Return JSON in this format:
 });
 
 // POST /api/ai/evaluate-answer
+// Phase 7: Updated to return three-tier evaluation (pass/fail/neutral)
 router.post('/evaluate-answer', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const rateLimit = await aiRateLimit(req.user!.id, req.user!.tier);
@@ -105,19 +106,27 @@ router.post('/evaluate-answer', async (req: AuthenticatedRequest, res: Response,
 
     const prompt = `${personalityPrompts[personality as keyof typeof personalityPrompts] || personalityPrompts.COACH}
 
-Evaluate this answer and provide feedback:
+Evaluate this answer using a THREE-TIER system:
 
 Question: ${question}
 User's Answer: ${userAnswer}
 Expected concepts to cover: ${expectedAnswer}${sourcesSection}
 
-Return JSON:
+EVALUATION CRITERIA:
+- PASS: The answer demonstrates clear understanding of the core concept. Key points are addressed correctly, even if explanation isn't perfect.
+- FAIL: The answer shows fundamental misunderstanding, is factually incorrect, or completely misses the point of the question.
+- NEUTRAL: The answer shows partial understanding. Some key points are addressed but important aspects are missing or unclear.
+
+Return JSON with this EXACT structure:
 {
-  "isCorrect": true | false,
-  "feedback": "Your feedback here",
-  "keyPoints": ["Point they got right", "Point they missed"],
-  "suggestion": "What to focus on next"${sources.length > 0 ? ',\n  "recommendedSources": ["Title of relevant source to explore"]' : ''}
-}`;
+  "result": "pass" | "fail" | "neutral",
+  "feedback": "Constructive feedback explaining the evaluation",
+  "correctAnswer": "What a complete answer should include (especially important for fail/neutral)",
+  "keyPointsHit": ["Specific concepts the user got right"],
+  "keyPointsMissed": ["Specific concepts the user missed or got wrong"]
+}
+
+Be fair but accurate in your evaluation. Partial credit (neutral) is appropriate when the user shows effort and some understanding but is incomplete.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -128,7 +137,21 @@ Return JSON:
       throw new AppError(500, 'Failed to parse AI response', 'AI_PARSE_ERROR');
     }
 
-    res.json(JSON.parse(jsonMatch[0]));
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // Validate and normalize the response
+    const validResults = ['pass', 'fail', 'neutral'];
+    const normalizedResult = {
+      result: validResults.includes(parsed.result?.toLowerCase())
+        ? parsed.result.toLowerCase()
+        : 'neutral',
+      feedback: parsed.feedback || 'Your answer has been evaluated.',
+      correctAnswer: parsed.correctAnswer || '',
+      keyPointsHit: Array.isArray(parsed.keyPointsHit) ? parsed.keyPointsHit : [],
+      keyPointsMissed: Array.isArray(parsed.keyPointsMissed) ? parsed.keyPointsMissed : [],
+    };
+
+    res.json(normalizedResult);
   } catch (error) {
     next(error);
   }

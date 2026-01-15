@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import ProgressBar from '../components/ui/ProgressBar';
+import AnimatedNumber from '../components/ui/AnimatedNumber';
+import CompletionCheckmark from '../components/ui/CompletionCheckmark';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAuthStore } from '../stores/authStore';
 import { useDocumentTitle } from '../hooks';
@@ -32,6 +35,7 @@ export default function SessionNotes() {
   const { getSession, updateSession } = useSessionStore();
   const { accessToken, isAuthenticated, user } = useAuthStore();
 
+  const [showCompletionCheckmark, setShowCompletionCheckmark] = useState(false);
   const [showFollowPrompt, setShowFollowPrompt] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isAlreadyFollowing, setIsAlreadyFollowing] = useState(false);
@@ -364,6 +368,19 @@ export default function SessionNotes() {
     }
   }, [session]);
 
+  // Show completion checkmark animation on first visit to completed session
+  useEffect(() => {
+    if (session?.completedAt) {
+      // Check if we've already shown the checkmark for this session
+      const checkmarkShownKey = `checkmark_shown_${sessionId}`;
+      const hasShown = sessionStorage.getItem(checkmarkShownKey);
+      if (!hasShown) {
+        setShowCompletionCheckmark(true);
+        sessionStorage.setItem(checkmarkShownKey, 'true');
+      }
+    }
+  }, [session?.completedAt, sessionId]);
+
   // Generate structured notes from transcript or topics
   useEffect(() => {
     const generateNotes = async () => {
@@ -540,9 +557,17 @@ export default function SessionNotes() {
   const completionRate = session.score.topicsCompleted / session.topics.length;
   const hasAnsweredQuestions = session.score.questionsAnswered > 0;
 
+  // Calculate accuracy percentage
+  const accuracy = session.score.questionsAnswered > 0
+    ? Math.round((session.score.questionsCorrect / session.score.questionsAnswered) * 100)
+    : 0;
+  const isPerfectScore = session.score.questionsAnswered > 0 && accuracy === 100;
+
   // Get encouraging message based on performance
   const getCompletionMessage = () => {
-    if (completionRate >= 0.8 && hasAnsweredQuestions) {
+    if (isPerfectScore) {
+      return "Outstanding! You achieved a perfect score on all questions!";
+    } else if (completionRate >= 0.8 && hasAnsweredQuestions) {
       return "Excellent work! You've demonstrated great engagement with the material.";
     } else if (completionRate >= 0.5) {
       return "Good progress! Keep learning and exploring new topics.";
@@ -555,16 +580,80 @@ export default function SessionNotes() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {/* Completion Checkmark Animation */}
+      <CompletionCheckmark
+        show={showCompletionCheckmark}
+        onComplete={() => setShowCompletionCheckmark(false)}
+        size="lg"
+        message={isPerfectScore ? "Perfect Score!" : "Session Complete!"}
+      />
+
       {/* Congratulations Banner */}
       {session.completedAt && (
         <Card className="bg-success/20 border-success">
-          <div className="text-center py-2">
-            <h2 className="font-heading text-xl font-bold text-success mb-1">
+          <div className="text-center py-4">
+            {/* Phase 7 F7: Changed to text-text (black) */}
+            <h2 className="font-heading text-xl font-bold text-text mb-2">
               Session Complete!
             </h2>
-            <p className="text-text/80">
+
+            {/* Perfect Score Badge */}
+            {isPerfectScore && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 mb-3 bg-primary border-3 border-border shadow-brutal-sm">
+                <svg className="w-5 h-5 text-text" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span className="font-heading font-bold text-text">Perfect Score!</span>
+              </div>
+            )}
+
+            <p className="text-text/80 mb-4">
               {getCompletionMessage()}
             </p>
+
+            {/* Completion Progress Bar */}
+            <div className="max-w-md mx-auto">
+              <ProgressBar
+                current={session.score.topicsCompleted}
+                total={session.topics.length}
+                label="Completion"
+                showPercentage={true}
+                showCount={false}
+              />
+            </div>
+
+            {/* Phase 7 F8: Score Breakdown Display */}
+            {session.score.questionsAnswered > 0 && (
+              <div className="mt-4 flex flex-wrap justify-center gap-3">
+                {/* Passed */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-success/20 border-2 border-success rounded-full">
+                  <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm font-semibold text-success">
+                    {session.score.questionsPassed || 0} Passed
+                  </span>
+                </div>
+                {/* Failed */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-error/20 border-2 border-error rounded-full">
+                  <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span className="text-sm font-semibold text-error">
+                    {session.score.questionsFailed || 0} Failed
+                  </span>
+                </div>
+                {/* Partial/Neutral */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning/20 border-2 border-warning rounded-full">
+                  <svg className="w-4 h-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-warning">
+                    {session.score.questionsNeutral || 0} Partial
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -778,36 +867,50 @@ export default function SessionNotes() {
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           <div className="text-center p-3 bg-surface border-2 border-border">
-            <p className="text-3xl font-heading font-bold text-success">
-              {session.score.topicsCompleted}
-            </p>
+            <AnimatedNumber
+              value={session.score.topicsCompleted}
+              className="text-3xl font-heading font-bold text-success"
+            />
             <p className="text-xs text-text/70 mt-1">Completed</p>
           </div>
           <div className="text-center p-3 bg-surface border-2 border-border">
-            <p className="text-3xl font-heading font-bold text-text/50">
-              {session.score.topicsSkipped}
-            </p>
+            <AnimatedNumber
+              value={session.score.topicsSkipped}
+              className="text-3xl font-heading font-bold text-text/50"
+            />
             <p className="text-xs text-text/70 mt-1">Skipped</p>
           </div>
           <div className="text-center p-3 bg-surface border-2 border-border">
-            <p className="text-3xl font-heading font-bold text-secondary">
-              {session.score.questionsAnswered}
-            </p>
+            <AnimatedNumber
+              value={session.score.questionsAnswered}
+              className="text-3xl font-heading font-bold text-secondary"
+            />
             <p className="text-xs text-text/70 mt-1">Answered</p>
           </div>
           <div className="text-center p-3 bg-surface border-2 border-border">
-            <p className="text-3xl font-heading font-bold text-primary">
-              {session.score.bookmarkedTopics}
-            </p>
+            <AnimatedNumber
+              value={session.score.bookmarkedTopics}
+              className="text-3xl font-heading font-bold text-primary"
+            />
             <p className="text-xs text-text/70 mt-1">Bookmarked</p>
           </div>
           <div className="text-center p-3 bg-surface border-2 border-border">
-            <p className="text-3xl font-heading font-bold text-text">
-              {session.score.digDeeperCount}
-            </p>
+            <AnimatedNumber
+              value={session.score.digDeeperCount}
+              className="text-3xl font-heading font-bold text-text"
+            />
             <p className="text-xs text-text/70 mt-1">Dig Deeper</p>
           </div>
         </div>
+
+        {/* Accuracy indicator */}
+        {session.score.questionsAnswered > 0 && (
+          <div className="mt-4 pt-4 border-t-2 border-border/30 text-center">
+            <p className="text-sm text-text/70">
+              Accuracy: <AnimatedNumber value={accuracy} suffix="%" className="font-heading font-bold text-text" />
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* AI Key Takeaways */}

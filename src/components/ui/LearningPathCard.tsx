@@ -36,7 +36,6 @@ export default function LearningPathCard({
   compact = false,
 }: LearningPathCardProps) {
   const {
-    id,
     title,
     description,
     totalItems,
@@ -66,7 +65,7 @@ export default function LearningPathCard({
           <img src={thumbnail} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-primary/10">
-            <MaterialIcon name="school" size={compact ? 'lg' : '2xl'} className="text-primary" decorative />
+            <MaterialIcon name="school" size={compact ? 'lg' : 'xl'} className="text-primary" decorative />
           </div>
         )}
         {/* Status Badge */}
@@ -109,7 +108,7 @@ export default function LearningPathCard({
             </span>
             <span className="font-bold text-text">{progress}%</span>
           </div>
-          <ProgressBar value={progress} max={100} size={compact ? 'sm' : 'md'} />
+          <ProgressBar current={progress} total={100} />
         </div>
 
         {/* Meta Info */}

@@ -315,7 +315,7 @@ export default function LearningPathDetail() {
               <span className="text-text/70">Overall Progress</span>
               <span className="font-semibold text-text">{pathData.progress}%</span>
             </div>
-            <ProgressBar value={pathData.progress} max={100} size="lg" />
+            <ProgressBar current={pathData.progress} total={100} />
           </div>
         </div>
       </Card>

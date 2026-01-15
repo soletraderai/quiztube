@@ -3,6 +3,7 @@ import type { Session, ProcessingState, VideoMetadata, KnowledgeBase } from '../
 import { extractVideoId, fetchVideoMetadata, fetchTranscript, combineTranscript } from './youtube';
 import { generateTopicsFromVideo } from './gemini';
 import { buildKnowledgeBase, generateSampleSources } from './knowledgeBase';
+import { parseTranscriptSegments } from './transcript';
 
 // Generate unique session ID
 export function generateSessionId(): string {
@@ -45,9 +46,11 @@ export async function createSession(
   });
 
   let transcript = '';
+  // Phase 7 F2: Also store raw segments for parsing into help panel context
+  let rawSegments: Array<{ text: string; duration: number; offset: number }> = [];
   try {
-    const segments = await fetchTranscript(videoId);
-    transcript = combineTranscript(segments);
+    rawSegments = await fetchTranscript(videoId);
+    transcript = combineTranscript(rawSegments);
   } catch (error) {
     console.log('Transcript extraction note:', error);
     // Continue without transcript - Gemini will work with metadata only
@@ -98,6 +101,11 @@ export async function createSession(
     message: 'Session ready!',
   });
 
+  // Phase 7 F2: Parse raw segments for help panel context
+  const transcriptSegments = rawSegments.length > 0
+    ? parseTranscriptSegments(rawSegments)
+    : undefined;
+
   const session: Session = {
     id: generateSessionId(),
     createdAt: Date.now(),
@@ -112,12 +120,18 @@ export async function createSession(
       questionsCorrect: 0,
       bookmarkedTopics: 0,
       digDeeperCount: 0,
+      // Phase 7: Three-tier evaluation counts
+      questionsPassed: 0,
+      questionsFailed: 0,
+      questionsNeutral: 0,
     },
     currentTopicIndex: 0,
     currentQuestionIndex: 0,
     difficulty: 'standard',
     status: 'overview',
     transcript: transcript || undefined,  // Store transcript for note generation
+    // Phase 7 F2: Store parsed transcript segments for help panel
+    transcriptSegments,
   };
 
   return session;

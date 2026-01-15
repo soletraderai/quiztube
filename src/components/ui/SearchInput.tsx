@@ -37,7 +37,14 @@ export function logSearchSelection(query: string, resultId: string, resultTitle?
   try {
     const existing = JSON.parse(localStorage.getItem(SEARCH_LOGS_KEY) || '[]') as SearchLogEvent[];
     // Find the most recent search with this query and update it
-    const lastIndex = existing.findLastIndex(e => e.query === query && !e.selectedResultId);
+    // Find the last matching index (backwards search for ES2022 compatibility)
+    let lastIndex = -1;
+    for (let i = existing.length - 1; i >= 0; i--) {
+      if (existing[i].query === query && !existing[i].selectedResultId) {
+        lastIndex = i;
+        break;
+      }
+    }
     if (lastIndex >= 0) {
       existing[lastIndex].selectedResultId = resultId;
       existing[lastIndex].selectedResultTitle = resultTitle;

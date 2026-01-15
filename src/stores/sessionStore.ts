@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Session, Library, ProcessingState, CodeSnippet } from '../types';
+import type { Session, Library, ProcessingState, CodeSnippet, EvaluationResult } from '../types';
 import { useAuthStore } from './authStore';
 
 const API_BASE = 'http://localhost:3001/api';
@@ -279,6 +279,7 @@ interface SessionState {
 
   // Score updates
   updateScore: (sessionId: string, updates: Partial<Session['score']>) => void;
+  updateEvaluationScore: (sessionId: string, result: EvaluationResult['result']) => void;
 
   // Code snippets
   saveSnippet: (sessionId: string, snippet: Omit<CodeSnippet, 'id' | 'savedAt'>) => void;
@@ -476,6 +477,44 @@ export const useSessionStore = create<SessionState>()(
                 }
               : state.currentSession,
         })),
+
+      // Phase 7: Update evaluation score based on pass/fail/neutral result
+      updateEvaluationScore: (sessionId, result) =>
+        set((state) => {
+          const getUpdates = (score: Session['score']) => {
+            const updates: Partial<Session['score']> = {};
+            switch (result) {
+              case 'pass':
+                updates.questionsPassed = (score.questionsPassed || 0) + 1;
+                updates.questionsCorrect = (score.questionsCorrect || 0) + 1;
+                break;
+              case 'fail':
+                updates.questionsFailed = (score.questionsFailed || 0) + 1;
+                break;
+              case 'neutral':
+                updates.questionsNeutral = (score.questionsNeutral || 0) + 1;
+                break;
+            }
+            return updates;
+          };
+
+          return {
+            library: {
+              sessions: state.library.sessions.map((s) =>
+                s.id === sessionId
+                  ? { ...s, score: { ...s.score, ...getUpdates(s.score) } }
+                  : s
+              ),
+            },
+            currentSession:
+              state.currentSession?.id === sessionId
+                ? {
+                    ...state.currentSession,
+                    score: { ...state.currentSession.score, ...getUpdates(state.currentSession.score) },
+                  }
+                : state.currentSession,
+          };
+        }),
 
       saveSnippet: (sessionId, snippet) => {
         const newSnippet: CodeSnippet = {

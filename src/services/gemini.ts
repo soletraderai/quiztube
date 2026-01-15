@@ -1,9 +1,10 @@
 // Gemini AI service for question generation and answer evaluation
 // Uses server-side proxy to protect API key
-import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality } from '../types';
+import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality, EvaluationResult } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
 
-const AI_PROXY_URL = 'http://localhost:3001/api/ai/generate';
+// Note: Transcript proxy (with AI) runs on 3002, API server runs on 3001
+const AI_PROXY_URL = 'http://localhost:3002/api/ai/generate';
 
 // Custom error class for rate limiting
 export class RateLimitError extends Error {
@@ -450,6 +451,7 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
 }
 
 // Generate topics and questions from video metadata
+// Phase 7: Updated with timestamps, question types, and anti-repetition instructions
 export async function generateTopicsFromVideo(
   metadata: VideoMetadata,
   transcript?: string
@@ -457,92 +459,182 @@ export async function generateTopicsFromVideo(
   // Detect if this is a programming/coding tutorial
   const isProgrammingTutorial = /\b(programming|coding|javascript|typescript|python|react|node|java|c\+\+|c#|rust|go|ruby|php|html|css|sql|api|backend|frontend|web dev|software|developer|code|tutorial)\b/i.test(metadata.title);
 
-  const codeExampleInstructions = isProgrammingTutorial ? `
-4. For programming topics, include a "codeExample" field with a working code snippet that demonstrates the concept (5-15 lines)
-5. For programming topics, include a "codeLanguage" field (e.g., "javascript", "python", "typescript", "java")
+  // Phase 7: Question type instructions
+  const questionTypeInstructions = `
+QUESTION TYPE REQUIREMENTS:
+- Each question MUST have a "questionType" from: comprehension, application, analysis, synthesis, evaluation, code
+- Distribute question types across the session:
+  * At least 1 comprehension question (tests recall and understanding)
+  * At least 1 application question (tests ability to apply concepts)
+  * At least 1 analysis or synthesis question (tests deeper thinking)
+  * Use "code" type ONLY for programming videos when asking about code
 
-If a topic is not about coding, omit the codeExample and codeLanguage fields.` : '';
+QUESTION TYPE EXAMPLES:
+- comprehension: "According to the video, what is..." / "What does the speaker say about..."
+- application: "How would you apply this to..." / "Given this scenario, how would you..."
+- analysis: "Why does the speaker recommend..." / "What is the relationship between..."
+- synthesis: "How does concept X connect to concept Y..." / "Combine these ideas to explain..."
+- evaluation: "What are the pros and cons of..." / "Which approach is better and why..."
+- code: "Fix the bug in this function..." / "What does this code output..."`;
 
-  const codeExampleFormat = isProgrammingTutorial ? `,
-      "codeExample": "// Example code here (optional, only for programming topics)",
-      "codeLanguage": "javascript"` : '';
+  const codeQuestionInstructions = isProgrammingTutorial ? `
+
+CODE QUESTIONS (for programming videos only):
+- Set "isCodeQuestion": true for questions that involve writing/analyzing code
+- Include a "codeChallenge" object with:
+  * "template": Starter code for the student to work with
+  * "language": The programming language (e.g., "javascript", "python")` : '';
+
+  const timestampInstructions = transcript ? `
+
+TIMESTAMP REQUIREMENTS:
+- For each topic, include approximate timestamps from the video:
+  * "timestampStart": Start time in seconds
+  * "timestampEnd": End time in seconds
+  * "sectionName": A descriptive name for this section
+- Estimate timestamps based on where topics appear in the transcript` : '';
+
+  const antiRepetitionRules = `
+
+CRITICAL ANTI-REPETITION RULES:
+1. NEVER start two questions with the same phrase
+2. Each question MUST reference SPECIFIC content from the video/transcript
+3. AVOID generic questions like "What is the main message?" or "What did you learn?"
+4. Questions should feel unique and tied to actual video content
+5. Vary question structure: don't use the same pattern twice`;
 
   const prompt = transcript
-    ? `Analyze this YouTube video transcript and create an educational learning session:
+    ? `Analyze this YouTube video transcript and create an educational learning session with VARIED, SPECIFIC questions.
 
 Video Title: "${metadata.title}"
 Channel: ${metadata.channel}
+Video Duration: ${metadata.duration ? Math.floor(metadata.duration / 60) + ' minutes' : 'Unknown'}
 
 Transcript:
 ${transcript.slice(0, 15000)} ${transcript.length > 15000 ? '... (truncated)' : ''}
 
-Based on the video content, please:
+Based on the video content:
 1. Identify 3-5 main topics covered in the video
-2. For each topic, provide a concise summary (2-3 sentences)
-3. Generate 2-3 questions per topic that test understanding${codeExampleInstructions}
+2. For each topic, provide a concise summary (2-3 sentences) that references SPECIFIC content
+3. Generate 2-3 questions per topic that test understanding
+4. For EACH question, include:
+   - "text": The question (must reference specific video content)
+   - "expectedAnswer": Key points a correct answer should mention
+   - "questionType": One of comprehension/application/analysis/synthesis/evaluation/code
+${questionTypeInstructions}${codeQuestionInstructions}${timestampInstructions}${antiRepetitionRules}
 
-Format your response as JSON with this exact structure:
+Format your response as JSON:
 {
   "topics": [
     {
       "title": "Topic Title",
-      "summary": "Brief summary of what this topic covers (2-3 sentences)",
+      "summary": "Summary referencing specific content from the video",
+      "sectionName": "e.g., Introduction, Core Concepts, Practical Examples",
+      "timestampStart": 0,
+      "timestampEnd": 180,
       "questions": [
-        "Question 1 text",
-        "Question 2 text"
-      ]${codeExampleFormat}
+        {
+          "text": "Specific question referencing video content",
+          "expectedAnswer": "Key points: 1) ... 2) ...",
+          "questionType": "comprehension",
+          "isCodeQuestion": false
+        }
+      ],
+      "codeExample": "// Optional code example",
+      "codeLanguage": "javascript"
     }
   ],
   "estimatedDuration": 15
 }
 
-The estimatedDuration should be in minutes. Make questions thought-provoking and focus on understanding.`
-    : `Analyze this YouTube video and create an educational learning session:
+Make questions thought-provoking and SPECIFIC to this video's content.`
+    : `Analyze this YouTube video and create an educational learning session with VARIED questions:
 
 Video Title: "${metadata.title}"
 Channel: ${metadata.channel}
 URL: ${metadata.url}
 
-Based on the video title and likely content, please:
+Based on the video title and likely content:
 1. Identify 3-5 main topics this video probably covers
 2. For each topic, provide an educational summary (2-3 sentences)
-3. Generate 2-3 questions per topic that would help test understanding${codeExampleInstructions}
+3. Generate 2-3 questions per topic with varied question types
+${questionTypeInstructions}${codeQuestionInstructions}${antiRepetitionRules}
 
-Format your response as JSON with this exact structure:
+Format your response as JSON:
 {
   "topics": [
     {
       "title": "Topic Title",
-      "summary": "Brief summary of what this topic covers (2-3 sentences)",
+      "summary": "Educational summary of what this topic covers",
       "questions": [
-        "Question 1 text",
-        "Question 2 text"
-      ]${codeExampleFormat}
+        {
+          "text": "Question text",
+          "expectedAnswer": "Key points: 1) ... 2) ...",
+          "questionType": "comprehension",
+          "isCodeQuestion": false
+        }
+      ]
     }
   ],
   "estimatedDuration": 15
 }
 
-The estimatedDuration should be in minutes. Make questions thought-provoking and focus on understanding concepts.`;
+Make questions thought-provoking and focused on understanding concepts.`;
 
   try {
     const response = await callGemini(prompt);
     const jsonStr = extractJson(response);
     const data = JSON.parse(jsonStr);
 
-    // Transform to proper Topic format
-    const topics: Topic[] = data.topics.map((t: { title: string; summary: string; questions: string[]; codeExample?: string; codeLanguage?: string }) => ({
+    // Phase 7: Enhanced type for parsing AI response
+    interface QuestionInput {
+      text?: string;
+      expectedAnswer?: string;
+      questionType?: string;
+      isCodeQuestion?: boolean;
+      codeChallenge?: { template: string; language: string };
+    }
+
+    interface TopicInput {
+      title: string;
+      summary: string;
+      questions: (string | QuestionInput)[];
+      codeExample?: string;
+      codeLanguage?: string;
+      timestampStart?: number;
+      timestampEnd?: number;
+      sectionName?: string;
+    }
+
+    // Calculate fallback timestamps based on video duration and topic count
+    const videoDuration = metadata.duration || 600; // Default 10 minutes
+    const topicCount = data.topics?.length || 3;
+    const avgTopicDuration = videoDuration / topicCount;
+
+    // Transform to proper Topic format with Phase 7 enhancements
+    const topics: Topic[] = data.topics.map((t: TopicInput, topicIndex: number) => ({
       id: generateId(),
       title: t.title,
       summary: t.summary,
-      questions: t.questions.map((q: string) => ({
-        id: generateId(),
-        text: q,
-        difficulty: 'standard' as const,
-        userAnswer: null,
-        feedback: null,
-        answeredAt: null,
-      })),
+      questions: t.questions.map((q: string | QuestionInput) => {
+        // Handle both string format and object format
+        const isObject = typeof q !== 'string';
+        const questionText = isObject ? (q as QuestionInput).text || '' : q;
+        const qObj = isObject ? (q as QuestionInput) : {};
+        return {
+          id: generateId(),
+          text: questionText,
+          difficulty: 'standard' as const,
+          expectedAnswer: qObj.expectedAnswer,
+          userAnswer: null,
+          feedback: null,
+          answeredAt: null,
+          // Phase 7: New fields
+          questionType: qObj.questionType as import('../types').QuestionType || 'comprehension',
+          isCodeQuestion: qObj.isCodeQuestion || false,
+          codeChallenge: qObj.codeChallenge,
+        };
+      }),
       digDeeperConversation: null,
       bookmarked: false,
       skipped: false,
@@ -550,7 +642,18 @@ The estimatedDuration should be in minutes. Make questions thought-provoking and
       // Include code examples if present (for programming topics)
       ...(t.codeExample && { codeExample: t.codeExample }),
       ...(t.codeLanguage && { codeLanguage: t.codeLanguage }),
+      // Phase 7: Timestamps (use AI-provided or fallback)
+      timestampStart: t.timestampStart ?? Math.floor(topicIndex * avgTopicDuration),
+      timestampEnd: t.timestampEnd ?? Math.floor((topicIndex + 1) * avgTopicDuration),
+      sectionName: t.sectionName,
     }));
+
+    // Phase 7: Validate question diversity (log warning if not met)
+    const allQuestions = topics.flatMap(t => t.questions);
+    const questionTypes = new Set(allQuestions.map(q => q.questionType).filter(Boolean));
+    if (questionTypes.size < 3) {
+      console.warn(`Question diversity warning: Only ${questionTypes.size} question types found. Expected at least 3.`);
+    }
 
     return {
       topics,
@@ -596,12 +699,13 @@ function getPersonalityOpeners(personality: TutorPersonality): { excellent: stri
 }
 
 // Generate contextual fallback feedback when API is unavailable
+// Phase 7: Updated to return EvaluationResult with three-tier system
 export function generateFallbackFeedback(
   topic: Topic,
-  _question: Question,
+  question: Question,
   userAnswer: string,
   difficulty: 'standard' | 'easier' | 'harder'
-): string {
+): EvaluationResult {
   const wordCount = userAnswer.trim().split(/\s+/).length;
   const topicTitle = topic.title;
 
@@ -618,6 +722,7 @@ export function generateFallbackFeedback(
   const isDetailed = wordCount > 50;
   const isComprehensive = wordCount > 100;
   const isMinimal = wordCount < 15;
+  const isEmpty = wordCount < 5;
 
   // Generate quality score
   let qualityScore = 0;
@@ -632,50 +737,77 @@ export function generateFallbackFeedback(
   const difficultyMultiplier = difficulty === 'harder' ? 0.8 : difficulty === 'easier' ? 1.2 : 1;
   const adjustedScore = qualityScore * difficultyMultiplier;
 
-  // Generate contextual feedback based on score and characteristics
-  let opener: string;
-  let body: string;
-  let suggestion: string;
+  // Determine result based on score
+  let result: 'pass' | 'fail' | 'neutral';
+  let feedback: string;
+  const keyPointsHit: string[] = [];
+  const keyPointsMissed: string[] = [];
 
-  if (adjustedScore >= 6) {
-    // Excellent answer
-    opener = isComprehensive
-      ? personalityOpeners.excellent
-      : personalityOpeners.excellent;
-    body = `You've demonstrated a solid understanding of "${topicTitle}". ${
+  if (isEmpty) {
+    // Empty or near-empty answer = fail
+    result = 'fail';
+    feedback = `${personalityOpeners.minimal} Your response was too brief to evaluate. Please provide a more detailed answer that addresses the question about "${topicTitle}".`;
+    keyPointsMissed.push('Insufficient response provided');
+    keyPointsMissed.push('Core concepts not addressed');
+  } else if (adjustedScore >= 6) {
+    // Excellent answer = pass
+    result = 'pass';
+    feedback = `${personalityOpeners.excellent} You've demonstrated a solid understanding of "${topicTitle}". ${
       hasExamples ? "Your use of examples helps illustrate the concepts well. " : ""
     }${hasExplanation ? "Your explanations show critical thinking. " : ""}`;
-    suggestion = difficulty === 'harder'
-      ? "Consider exploring edge cases or alternative perspectives to deepen your understanding further."
-      : "Keep up this level of thoughtful analysis!";
+
+    if (hasExamples) keyPointsHit.push('Used concrete examples');
+    if (hasExplanation) keyPointsHit.push('Provided clear explanations');
+    if (hasComparison) keyPointsHit.push('Made relevant comparisons');
+    if (isComprehensive) keyPointsHit.push('Comprehensive coverage');
   } else if (adjustedScore >= 3) {
-    // Good answer
-    opener = personalityOpeners.good;
-    body = `You've touched on some key points about "${topicTitle}". `;
-    if (!hasExamples) {
-      suggestion = "Try including specific examples to strengthen your answer.";
-    } else if (!hasExplanation) {
-      suggestion = "Consider explaining the 'why' behind your points to show deeper understanding.";
+    // Good answer = neutral (partial understanding)
+    result = 'neutral';
+    feedback = `${personalityOpeners.good} You've touched on some key points about "${topicTitle}". `;
+
+    if (hasExamples) {
+      keyPointsHit.push('Included examples');
     } else {
-      suggestion = "Review the topic summary for additional insights you might incorporate.";
+      keyPointsMissed.push('Could include specific examples');
     }
+    if (hasExplanation) {
+      keyPointsHit.push('Some explanation provided');
+    } else {
+      keyPointsMissed.push('Could explain the "why" behind points');
+      feedback += "Consider explaining the reasoning behind your points. ";
+    }
+    keyPointsMissed.push('Review topic summary for additional insights');
   } else if (isMinimal) {
-    // Minimal answer
-    opener = personalityOpeners.minimal;
-    body = `You've started to engage with "${topicTitle}". `;
-    suggestion = difficulty === 'easier'
-      ? "Try expanding on your thoughts - even a few more sentences can help reinforce your understanding."
-      : "Consider elaborating more on your answer. What examples can you think of? Why do you think this is important?";
+    // Minimal answer = fail
+    result = 'fail';
+    feedback = `${personalityOpeners.minimal} You've started to engage with "${topicTitle}", but your answer needs more depth. ${
+      difficulty === 'easier'
+        ? "Try expanding on your thoughts - even a few more sentences can help."
+        : "Consider elaborating more. What examples can you think of?"
+    }`;
+    keyPointsMissed.push('Answer too brief');
+    keyPointsMissed.push('Key concepts not fully addressed');
   } else {
-    // Standard answer
-    opener = personalityOpeners.standard;
-    body = `You've shared your thoughts on "${topicTitle}". `;
-    suggestion = hasQuestions
-      ? "Great that you're asking questions! The topic summary may help address some of them."
-      : "Consider how these concepts might apply to real-world situations.";
+    // Standard but incomplete = neutral
+    result = 'neutral';
+    feedback = `${personalityOpeners.standard} You've shared your thoughts on "${topicTitle}". ${
+      hasQuestions
+        ? "Great that you're asking questions! The topic summary may help address some of them."
+        : "Consider how these concepts might apply to real-world situations."
+    }`;
+
+    if (hasQuestions) keyPointsHit.push('Shows curiosity with questions');
+    keyPointsMissed.push('Could provide more depth');
+    keyPointsMissed.push('Consider adding examples or explanations');
   }
 
-  return `${opener} ${body}${suggestion}`;
+  return {
+    result,
+    feedback,
+    correctAnswer: question.expectedAnswer || `A complete answer should address the key concepts from "${topicTitle}" with examples and explanations.`,
+    keyPointsHit,
+    keyPointsMissed,
+  };
 }
 
 // Get personality-specific prompting instructions
@@ -700,35 +832,41 @@ function getCurrentPersonality(): TutorPersonality {
 }
 
 // Evaluate user's answer to a question
+// Phase 7: Updated to return EvaluationResult with three-tier system
 export async function evaluateAnswer(
   topic: Topic,
   question: Question,
   userAnswer: string,
   difficulty: 'standard' | 'easier' | 'harder' = 'standard',
   sources?: Array<{ url: string; title: string; type: string }>
-): Promise<string> {
+): Promise<EvaluationResult> {
   // Get current personality from settings
   const personality = getCurrentPersonality();
   const personalityInstructions = getPersonalityInstructions(personality);
 
   // Adjust evaluation criteria based on difficulty
   const difficultyInstructions = {
-    easier: `The student is working at an easier difficulty level. Be more supportive and encouraging. Focus on the core understanding and don't be too strict about missing details. Highlight what they got right and provide gentle guidance.`,
-    standard: `Evaluate the answer at a standard difficulty level. Balance encouragement with constructive feedback. Acknowledge correct understanding while pointing out areas for improvement.`,
-    harder: `The student is working at a harder difficulty level. Be more rigorous in your evaluation. Expect deeper understanding and more comprehensive answers. Challenge them to think more critically while still being encouraging.`,
+    easier: `The student is working at an easier difficulty level. Be more supportive and encouraging. Focus on the core understanding and don't be too strict about missing details.`,
+    standard: `Evaluate the answer at a standard difficulty level. Balance encouragement with constructive feedback.`,
+    harder: `The student is working at a harder difficulty level. Be more rigorous in your evaluation. Expect deeper understanding.`,
   };
 
   // Build sources section if available
   const sourcesSection = sources && sources.length > 0
-    ? `\n\nRelevant learning resources for deeper study:\n${sources.map(s => `- ${s.title} (${s.type}): ${s.url}`).join('\n')}\n\nIf helpful, you may reference these resources in your feedback.`
+    ? `\n\nRelevant learning resources for deeper study:\n${sources.map(s => `- ${s.title} (${s.type}): ${s.url}`).join('\n')}`
+    : '';
+
+  // Build expected answer hints from the question if available
+  const expectedHints = question.expectedAnswer
+    ? `\nExpected answer direction: ${question.expectedAnswer}`
     : '';
 
   const prompt = `${personalityInstructions}
 
-You are an educational assistant evaluating a student's answer.
+You are an educational assistant evaluating a student's answer using a THREE-TIER system.
 
 Topic: ${topic.title}
-Context: ${topic.summary}
+Context: ${topic.summary}${expectedHints}
 
 Question: ${question.text}
 
@@ -737,20 +875,43 @@ Student's Answer: ${userAnswer}
 Difficulty Level: ${difficulty.toUpperCase()}
 ${difficultyInstructions[difficulty]}${sourcesSection}
 
-Please evaluate the answer and provide constructive feedback in your personality style:
-1. Acknowledge what the student got right
-2. Gently correct any misconceptions
-3. Add any important points they may have missed
-4. Keep the feedback encouraging and educational
+EVALUATION CRITERIA:
+- PASS: The answer demonstrates clear understanding of the core concept. Key points are addressed correctly.
+- FAIL: The answer shows fundamental misunderstanding, is factually incorrect, or completely misses the point.
+- NEUTRAL: The answer shows partial understanding. Some key points are addressed but important aspects are missing.
 
-Provide a concise response (2-4 sentences). Start with an assessment that matches your personality style.`;
+Return JSON with this EXACT structure:
+{
+  "result": "pass" | "fail" | "neutral",
+  "feedback": "Constructive feedback in your personality style (2-3 sentences)",
+  "correctAnswer": "What a complete answer should include",
+  "keyPointsHit": ["Specific concepts the user got right"],
+  "keyPointsMissed": ["Specific concepts the user missed or got wrong"]
+}
+
+Be fair and accurate. Use your personality style in the feedback.`;
 
   try {
     const response = await callGemini(prompt);
-    return response.trim();
+    const jsonStr = extractJson(response);
+    const parsed = JSON.parse(jsonStr);
+
+    // Validate and normalize the response
+    const validResults = ['pass', 'fail', 'neutral'];
+    return {
+      result: validResults.includes(parsed.result?.toLowerCase())
+        ? parsed.result.toLowerCase() as 'pass' | 'fail' | 'neutral'
+        : 'neutral',
+      feedback: parsed.feedback || 'Your answer has been evaluated.',
+      correctAnswer: parsed.correctAnswer || question.expectedAnswer || '',
+      keyPointsHit: Array.isArray(parsed.keyPointsHit) ? parsed.keyPointsHit : [],
+      keyPointsMissed: Array.isArray(parsed.keyPointsMissed) ? parsed.keyPointsMissed : [],
+    };
   } catch (error) {
     console.error('Error evaluating answer:', error);
-    throw new Error(`Failed to evaluate answer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Fall back to local evaluation when API fails
+    console.log('Using fallback evaluation');
+    return generateFallbackFeedback(topic, question, userAnswer, difficulty);
   }
 }
 
@@ -866,7 +1027,14 @@ ${conversationContext || 'No previous messages'}
 
 Student's new question: ${userQuestion}
 
-Provide a helpful, educational response in your personality style. Be thorough but concise. Use examples when helpful. If the question goes beyond the topic scope, try to relate it back or suggest resources.`;
+Response format rules (IMPORTANT - follow this structure):
+1. Lead with a DIRECT answer to their question (1-2 sentences max)
+2. When referencing the video/topic content, cite it: "From the topic summary: [quote or paraphrase]"
+3. Use bullet points for multiple items
+4. Keep responses scannable - maximum 3-4 sentences for initial response
+5. End with: "Want more detail on any part?"
+
+Stay in your personality style. Use examples when helpful. If the question goes beyond the topic scope, briefly relate it back or suggest they explore further.`;
 
   try {
     const response = await callGemini(prompt);

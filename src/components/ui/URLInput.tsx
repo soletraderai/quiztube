@@ -2,7 +2,7 @@
  * URLInput Component
  * YouTube URL input with real-time validation
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import MaterialIcon from './MaterialIcon';
 import Button from './Button';
 
@@ -126,7 +126,7 @@ export default function URLInput({
     }
   };
 
-  const showError = touched && value.trim() && !validationState.isValid;
+  const showError = Boolean(touched && value.trim() && !validationState.isValid);
 
   return (
     <form onSubmit={handleSubmit} className={`space-y-2 ${className}`}>

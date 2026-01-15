@@ -72,7 +72,7 @@ export default function RecommendationsSection({
             <MaterialIcon name="recommend" size="lg" className="text-primary" decorative />
           </div>
           <div className="text-center py-8">
-            <MaterialIcon name="explore" size="2xl" className="text-text/30 mb-4" decorative />
+            <MaterialIcon name="explore" size="xl" className="text-text/30 mb-4" decorative />
             <p className="text-text/70 max-w-md mx-auto">{emptyMessage}</p>
           </div>
         </div>

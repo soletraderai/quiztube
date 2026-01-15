@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
@@ -19,6 +20,8 @@ export default function SessionOverview() {
   const [isAdjustMode, setIsAdjustMode] = useState(false);
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  // Phase 7 F9: Expandable topic preview state
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (session) {
@@ -85,6 +88,30 @@ export default function SessionOverview() {
       setSelectedTopics(new Set(session?.topics.map(t => t.id) || []));
     }
     setIsAdjustMode(!isAdjustMode);
+  };
+
+  // Phase 7 F9: Toggle individual topic expansion
+  const toggleTopicExpansion = (topicId: string) => {
+    setExpandedTopics(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(topicId)) {
+        newSet.delete(topicId);
+      } else {
+        newSet.add(topicId);
+      }
+      return newSet;
+    });
+  };
+
+  // Phase 7 F9: Expand/collapse all topics
+  const handleExpandAll = () => {
+    if (session) {
+      setExpandedTopics(new Set(session.topics.map(t => t.id)));
+    }
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedTopics(new Set());
   };
 
   // Apply adjustments and start learning
@@ -175,17 +202,26 @@ export default function SessionOverview() {
           <h2 className="font-heading text-xl font-bold text-text">
             Topics to Cover
           </h2>
-          <button
-            onClick={handleToggleAdjustMode}
-            className={`px-4 py-2 font-heading font-semibold border-3 border-border transition-all ${
-              isAdjustMode
-                ? 'bg-secondary text-text shadow-brutal'
-                : 'bg-surface text-text hover:bg-primary/10'
-            }`}
-            aria-pressed={isAdjustMode}
-          >
-            {isAdjustMode ? 'Cancel Adjust' : 'Adjust Topics'}
-          </button>
+          <div className="flex gap-2">
+            {/* Phase 7 F9: Expand/Collapse All buttons */}
+            <button
+              onClick={expandedTopics.size === session.topics.length ? handleCollapseAll : handleExpandAll}
+              className="px-3 py-2 text-sm font-heading border-2 border-border bg-surface hover:bg-primary/10 transition-colors"
+            >
+              {expandedTopics.size === session.topics.length ? 'Collapse All' : 'Expand All'}
+            </button>
+            <button
+              onClick={handleToggleAdjustMode}
+              className={`px-4 py-2 font-heading font-semibold border-3 border-border transition-all ${
+                isAdjustMode
+                  ? 'bg-secondary text-text shadow-brutal'
+                  : 'bg-surface text-text hover:bg-primary/10'
+              }`}
+              aria-pressed={isAdjustMode}
+            >
+              {isAdjustMode ? 'Cancel Adjust' : 'Adjust Topics'}
+            </button>
+          </div>
         </div>
 
         {isAdjustMode && (
@@ -197,53 +233,111 @@ export default function SessionOverview() {
         <ol className="space-y-3">
           {session.topics.map((topic, index) => {
             const isSelected = selectedTopics.has(topic.id);
+            const isExpanded = expandedTopics.has(topic.id);
             return (
               <li
                 key={topic.id}
-                onClick={isAdjustMode ? () => toggleTopicSelection(topic.id) : undefined}
-                className={`flex items-start gap-3 p-3 border-2 border-border transition-colors ${
-                  isAdjustMode ? 'cursor-pointer' : ''
-                } ${
+                className={`border-2 border-border transition-colors ${
                   isAdjustMode && !isSelected
                     ? 'bg-surface/50 opacity-50'
-                    : 'bg-surface hover:bg-primary/10'
+                    : 'bg-surface'
                 }`}
-                role={isAdjustMode ? 'checkbox' : undefined}
-                aria-checked={isAdjustMode ? isSelected : undefined}
-                tabIndex={isAdjustMode ? 0 : undefined}
-                onKeyDown={isAdjustMode ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    toggleTopicSelection(topic.id);
-                  }
-                } : undefined}
               >
-                {isAdjustMode && (
-                  <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
-                    <div className={`w-6 h-6 border-3 border-border flex items-center justify-center ${
-                      isSelected ? 'bg-primary' : 'bg-surface'
-                    }`}>
-                      {isSelected && (
-                        <svg className="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
+                {/* Topic Header */}
+                <div
+                  onClick={isAdjustMode ? () => toggleTopicSelection(topic.id) : undefined}
+                  className={`flex items-start gap-3 p-3 ${
+                    isAdjustMode ? 'cursor-pointer hover:bg-primary/10' : ''
+                  }`}
+                  role={isAdjustMode ? 'checkbox' : undefined}
+                  aria-checked={isAdjustMode ? isSelected : undefined}
+                  tabIndex={isAdjustMode ? 0 : undefined}
+                  onKeyDown={isAdjustMode ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleTopicSelection(topic.id);
+                    }
+                  } : undefined}
+                >
+                  {isAdjustMode && (
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
+                      <div className={`w-6 h-6 border-3 border-border flex items-center justify-center ${
+                        isSelected ? 'bg-primary' : 'bg-surface'
+                      }`}>
+                        {isSelected && (
+                          <svg className="w-4 h-4 text-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
                     </div>
+                  )}
+                  <span className={`flex-shrink-0 w-8 h-8 flex items-center justify-center border-2 border-border font-heading font-bold ${
+                    isAdjustMode && !isSelected ? 'bg-surface' : 'bg-primary'
+                  }`}>
+                    {index + 1}
+                  </span>
+                  <div className="flex-1">
+                    <h3 className="font-heading font-semibold text-text">
+                      {topic.title}
+                    </h3>
+                    <p className="text-sm text-text/70 mt-1">
+                      {topic.questions.length} question{topic.questions.length !== 1 ? 's' : ''}
+                    </p>
                   </div>
-                )}
-                <span className={`flex-shrink-0 w-8 h-8 flex items-center justify-center border-2 border-border font-heading font-bold ${
-                  isAdjustMode && !isSelected ? 'bg-surface' : 'bg-primary'
-                }`}>
-                  {index + 1}
-                </span>
-                <div className="flex-1">
-                  <h3 className="font-heading font-semibold text-text">
-                    {topic.title}
-                  </h3>
-                  <p className="text-sm text-text/70 mt-1">
-                    {topic.questions.length} question{topic.questions.length !== 1 ? 's' : ''}
-                  </p>
+                  {/* Phase 7 F9: Expand/collapse button */}
+                  {!isAdjustMode && (
+                    <button
+                      onClick={() => toggleTopicExpansion(topic.id)}
+                      className="flex-shrink-0 w-8 h-8 flex items-center justify-center border-2 border-border bg-surface hover:bg-primary/10 transition-colors"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? 'Collapse questions' : 'Expand questions'}
+                    >
+                      <motion.svg
+                        animate={{ rotate: isExpanded ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-4 h-4 text-text"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </motion.svg>
+                    </button>
+                  )}
                 </div>
+
+                {/* Phase 7 F9: Expandable questions list */}
+                <AnimatePresence>
+                  {isExpanded && !isAdjustMode && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-3 pb-3 pt-0 border-t-2 border-border mt-0">
+                        <ol className="space-y-2 mt-3">
+                          {topic.questions.map((question, qIndex) => (
+                            <li
+                              key={question.id}
+                              className="flex items-start gap-2 text-sm"
+                            >
+                              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-primary/20 border border-border text-xs font-semibold">
+                                Q{qIndex + 1}
+                              </span>
+                              <span className="text-text/80 leading-relaxed">
+                                {question.text}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </li>
             );
           })}

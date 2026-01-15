@@ -1,6 +1,24 @@
 // Tutor personality type
 export type TutorPersonality = 'PROFESSOR' | 'COACH' | 'DIRECT' | 'CREATIVE';
 
+// Question type classification (Bloom's taxonomy levels + code)
+export type QuestionType = 'comprehension' | 'application' | 'analysis' | 'synthesis' | 'evaluation' | 'code';
+
+// Evaluation result from AI (three-tier system)
+export interface EvaluationResult {
+  result: 'pass' | 'fail' | 'neutral';
+  feedback: string;
+  correctAnswer?: string;
+  keyPointsHit: string[];
+  keyPointsMissed: string[];
+}
+
+// Code challenge configuration for code questions
+export interface CodeChallenge {
+  template: string;
+  language: string;
+}
+
 // Learning style type
 export type LearningStyle = 'visual' | 'reading' | 'auditory' | 'kinesthetic';
 
@@ -50,9 +68,17 @@ export interface Question {
   id: string;
   text: string;
   difficulty: 'standard' | 'easier' | 'harder';
+  expectedAnswer?: string; // Hints about expected answer for better feedback evaluation
   userAnswer: string | null;
   feedback: string | null;
   answeredAt: number | null;
+  // Phase 7: Question classification and timestamps
+  questionType?: QuestionType;
+  isCodeQuestion?: boolean;
+  codeChallenge?: CodeChallenge;
+  timestampStart?: number; // seconds into video
+  timestampEnd?: number;   // seconds into video
+  evaluationResult?: EvaluationResult;
 }
 
 // Dig deeper conversation message type
@@ -75,6 +101,10 @@ export interface Topic {
   // Code-related fields for programming topics
   codeExample?: string;
   codeLanguage?: string;
+  // Phase 7: Timestamp fields for video reference
+  timestampStart?: number; // seconds into video
+  timestampEnd?: number;   // seconds into video
+  sectionName?: string;    // Named section from video (e.g., "Introduction", "Key Concepts")
 }
 
 // Code snippet type
@@ -96,6 +126,10 @@ export interface SessionScore {
   questionsCorrect: number;
   bookmarkedTopics: number;
   digDeeperCount: number;
+  // Phase 7: Three-tier evaluation counts
+  questionsPassed: number;
+  questionsFailed: number;
+  questionsNeutral: number;
 }
 
 // Session type
@@ -114,6 +148,8 @@ export interface Session {
   savedSnippets?: CodeSnippet[];
   transcript?: string;  // Raw YouTube transcript text for note generation
   structuredNotes?: StructuredNotes;  // AI-generated structured notes from transcript
+  // Phase 7 F2: Parsed transcript segments for help panel context
+  transcriptSegments?: ParsedTranscriptSegment[];
 }
 
 // Structured notes generated from video transcript
@@ -145,11 +181,18 @@ export interface SessionOverview {
   topics: { id: string; title: string }[];
 }
 
-// API response types
+// API response types (raw YouTube format)
 export interface TranscriptSegment {
   text: string;
   duration: number;
   offset: number;
+}
+
+// Phase 7: Parsed transcript segment with absolute timestamps
+export interface ParsedTranscriptSegment {
+  text: string;
+  startTime: number; // seconds
+  endTime: number;   // seconds
 }
 
 // Processing state for session creation

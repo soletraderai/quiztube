@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import ErrorBoundary from './ErrorBoundary';
@@ -6,14 +6,26 @@ import OfflineBanner from './OfflineBanner';
 import PageTransition from './PageTransition';
 import HelpPanel from './HelpPanel';
 import MaterialIcon from './MaterialIcon';
+import type { ParsedTranscriptSegment } from '../../types';
 
 const SIDEBAR_COLLAPSED_KEY = 'quiztube-sidebar-collapsed';
+
+// Phase 7 F2: Transcript context data for help panel
+interface TranscriptContextData {
+  transcriptSegments?: ParsedTranscriptSegment[];
+  currentTimestampStart?: number;
+  currentTimestampEnd?: number;
+  videoUrl?: string;
+}
 
 // Context for help panel
 interface HelpContextType {
   openHelp: (context?: string) => void;
   closeHelp: () => void;
   isHelpOpen: boolean;
+  // Phase 7 F2: Methods to set transcript context
+  setTranscriptContext: (data: TranscriptContextData) => void;
+  clearTranscriptContext: () => void;
 }
 
 const HelpContext = createContext<HelpContextType | null>(null);
@@ -35,6 +47,8 @@ export default function SidebarLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpContext, setHelpContext] = useState('default');
+  // Phase 7 F2: Transcript context state
+  const [transcriptContext, setTranscriptContextState] = useState<TranscriptContextData>({});
 
   // Determine help context based on current route
   useEffect(() => {
@@ -58,6 +72,15 @@ export default function SidebarLayout() {
   };
 
   const closeHelp = () => setHelpOpen(false);
+
+  // Phase 7 F2: Methods to manage transcript context
+  const setTranscriptContext = useCallback((data: TranscriptContextData) => {
+    setTranscriptContextState(data);
+  }, []);
+
+  const clearTranscriptContext = useCallback(() => {
+    setTranscriptContextState({});
+  }, []);
 
   // Persist collapse state
   useEffect(() => {
@@ -85,6 +108,9 @@ export default function SidebarLayout() {
     openHelp,
     closeHelp,
     isHelpOpen: helpOpen,
+    // Phase 7 F2: Include transcript context methods
+    setTranscriptContext,
+    clearTranscriptContext,
   };
 
   return (
@@ -132,7 +158,7 @@ export default function SidebarLayout() {
         {/* Main Content Area */}
         <main
           id="main-content"
-          className={`transition-all duration-300 ease-in-out min-h-screen ${
+          className={`transition-all duration-300 ease-in-out min-h-screen bg-eg-paper dot-grid-subtle ${
             sidebarCollapsed ? 'md:ml-16' : 'md:ml-60'
           } pt-14 md:pt-0`}
         >
@@ -150,6 +176,11 @@ export default function SidebarLayout() {
           isOpen={helpOpen}
           onClose={closeHelp}
           context={helpContext}
+          // Phase 7 F2: Pass transcript context props
+          transcriptSegments={transcriptContext.transcriptSegments}
+          currentTimestampStart={transcriptContext.currentTimestampStart}
+          currentTimestampEnd={transcriptContext.currentTimestampEnd}
+          videoUrl={transcriptContext.videoUrl}
         />
       </div>
     </HelpContext.Provider>

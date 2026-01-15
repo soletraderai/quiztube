@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import ProgressBar from '../components/ui/ProgressBar';
@@ -8,14 +9,23 @@ import DigDeeperModal from '../components/ui/DigDeeperModal';
 import CodeEditor from '../components/ui/CodeEditor';
 import CodePlayground from '../components/ui/CodePlayground';
 import MaterialIcon from '../components/ui/MaterialIcon';
+import EvaluationFeedback from '../components/ui/EvaluationFeedback';
 import { useHelpContext } from '../components/ui/SidebarLayout';
 import { useSessionStore } from '../stores/sessionStore';
 import { evaluateAnswer, RateLimitError, generateFallbackFeedback } from '../services/gemini';
+import { formatTimestamp, generateYouTubeTimestampUrl } from '../services/transcript';
 import { useDocumentTitle } from '../hooks';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, EvaluationResult } from '../types';
 
-type SessionPhase = 'question' | 'feedback' | 'summary';
-type FeedbackType = 'excellent' | 'good' | 'needs-improvement';
+// Phase 7: Removed 'feedback' phase - feedback now shows inline
+type SessionPhase = 'question' | 'summary';
+
+// Question transition animation variants
+const questionVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 }
+};
 
 // Check if URL is valid
 const isValidUrl = (url: string): boolean => {
@@ -62,32 +72,6 @@ const sourceTypeIcons: Record<string, { icon: React.ReactNode; color: string }> 
     color: 'bg-accent text-text',
   },
 };
-
-// Detect feedback sentiment based on opening phrases
-function detectFeedbackType(feedback: string): FeedbackType {
-  const lowerFeedback = feedback.toLowerCase();
-  const excellentPhrases = ['great answer', 'excellent', 'perfect', 'spot on', 'exactly right', 'you nailed'];
-  const goodPhrases = ['good thinking', 'good answer', 'nice work', 'well done', 'solid', 'on the right track'];
-  const improvementPhrases = ['not quite', 'close', 'almost', 'partially', 'let me clarify', 'actually', 'however'];
-
-  if (excellentPhrases.some(phrase => lowerFeedback.includes(phrase))) {
-    return 'excellent';
-  }
-  if (improvementPhrases.some(phrase => lowerFeedback.includes(phrase))) {
-    return 'needs-improvement';
-  }
-  if (goodPhrases.some(phrase => lowerFeedback.includes(phrase))) {
-    return 'good';
-  }
-  // Default to good for neutral feedback
-  return 'good';
-}
-
-// Check if answer is considered "correct" for accuracy tracking
-function isAnswerCorrect(feedbackType: FeedbackType): boolean {
-  // Consider 'excellent' and 'good' as correct answers
-  return feedbackType === 'excellent' || feedbackType === 'good';
-}
 
 // Calculate optimal difficulty based on accuracy - targets 70-80% accuracy zone
 function calculateOptimalDifficulty(
@@ -140,9 +124,14 @@ export default function ActiveSession() {
     const stored = localStorage.getItem('quiztube_show_code_editor');
     return stored !== null ? stored === 'true' : true;
   });
+  // Phase 7: Inline evaluation result state
+  const [inlineEvaluation, setInlineEvaluation] = useState<EvaluationResult | null>(null);
+  const [showInlineFeedback, setShowInlineFeedback] = useState(false);
+  // Phase 7 F5: Expandable topic summary
+  const [isTopicSummaryExpanded, setIsTopicSummaryExpanded] = useState(false);
 
   // Help panel context
-  const { openHelp, closeHelp } = useHelpContext();
+  const { openHelp, closeHelp, setTranscriptContext, clearTranscriptContext } = useHelpContext();
 
   // Save code editor preference to localStorage
   useEffect(() => {
@@ -190,6 +179,26 @@ export default function ActiveSession() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [session?.status]);
 
+  // Phase 7 F2: Update help panel transcript context when topic changes
+  useEffect(() => {
+    if (session) {
+      const topicIndex = session.currentTopicIndex || 0;
+      const topic = session.topics[topicIndex];
+      if (topic) {
+        setTranscriptContext({
+          transcriptSegments: session.transcriptSegments,
+          currentTimestampStart: topic.timestampStart,
+          currentTimestampEnd: topic.timestampEnd,
+          videoUrl: session.video?.url,
+        });
+      }
+    }
+    // Clear transcript context on unmount
+    return () => {
+      clearTranscriptContext();
+    };
+  }, [session?.id, session?.currentTopicIndex, setTranscriptContext, clearTranscriptContext]);
+
   useEffect(() => {
     if (session && session.status !== 'completed') {
       setCurrentSession(session);
@@ -235,6 +244,7 @@ export default function ActiveSession() {
   const completedTopics = session.topics.filter((t) => t.completed || t.skipped).length;
 
   // Handle answer submission
+  // Phase 7: Updated to use EvaluationResult and show inline feedback
   const handleSubmitAnswer = async () => {
     if (!answer.trim()) {
       setToast({ message: 'Please enter an answer', type: 'error' });
@@ -244,11 +254,11 @@ export default function ActiveSession() {
     setLoading(true);
 
     try {
-      // Call server-side AI for feedback
-      let feedback: string;
+      // Call server-side AI for evaluation (now returns EvaluationResult)
+      let evaluation: EvaluationResult;
 
       try {
-        feedback = await evaluateAnswer(
+        evaluation = await evaluateAnswer(
           currentTopic,
           currentQuestion,
           answer,
@@ -265,7 +275,7 @@ export default function ActiveSession() {
           });
         }
         // Fallback to contextual feedback if API fails
-        feedback = generateFallbackFeedback(
+        evaluation = generateFallbackFeedback(
           currentTopic,
           currentQuestion,
           answer,
@@ -273,23 +283,26 @@ export default function ActiveSession() {
         );
       }
 
-      // Update question with answer and feedback
+      // Update question with answer and evaluation result
       updateQuestion(session.id, currentTopicIndex, currentQuestionIndex, {
         userAnswer: answer,
-        feedback: feedback,
+        feedback: evaluation.feedback,
         answeredAt: Date.now(),
+        evaluationResult: evaluation,
       });
 
-      // Determine if answer is correct based on feedback sentiment
-      const feedbackType = detectFeedbackType(feedback);
-      const wasCorrect = isAnswerCorrect(feedbackType);
+      // Phase 7: Update score based on three-tier evaluation
+      const wasCorrect = evaluation.result === 'pass';
       const newQuestionsAnswered = session.score.questionsAnswered + 1;
       const newQuestionsCorrect = session.score.questionsCorrect + (wasCorrect ? 1 : 0);
 
-      // Update score with accuracy tracking
+      // Update score with three-tier counts
       updateScore(session.id, {
         questionsAnswered: newQuestionsAnswered,
         questionsCorrect: newQuestionsCorrect,
+        questionsPassed: (session.score.questionsPassed || 0) + (evaluation.result === 'pass' ? 1 : 0),
+        questionsFailed: (session.score.questionsFailed || 0) + (evaluation.result === 'fail' ? 1 : 0),
+        questionsNeutral: (session.score.questionsNeutral || 0) + (evaluation.result === 'neutral' ? 1 : 0),
       });
 
       // Auto-calibrate difficulty based on accuracy (target: 70-80% zone)
@@ -309,16 +322,20 @@ export default function ActiveSession() {
         });
       }
 
-      setPhase('feedback');
+      // Phase 7: Show inline feedback instead of changing phase
+      setInlineEvaluation(evaluation);
+      setShowInlineFeedback(true);
     } catch (err) {
-      setToast({ message: 'Failed to process answer. Please try again.', type: 'error' });
+      setToast({ message: 'Connection issue. Your answer was saved locally.', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle continue to summary
+  // Handle continue to summary (Phase 7: from inline feedback)
   const handleContinueToSummary = () => {
+    setShowInlineFeedback(false);
+    setInlineEvaluation(null);
     setPhase('summary');
   };
 
@@ -421,6 +438,10 @@ export default function ActiveSession() {
       });
       setPhase('question');
       setAnswer('');
+      // Phase 7: Reset inline feedback state
+      setShowInlineFeedback(false);
+      setInlineEvaluation(null);
+      setIsTopicSummaryExpanded(false);
     }
   };
 
@@ -617,27 +638,104 @@ export default function ActiveSession() {
       {/* Question Phase */}
       {phase === 'question' && (
         <Card>
-          <div className="space-y-6">
-            <div>
-              <h2 className="font-heading text-lg font-bold text-text mb-2">
-                Question
-              </h2>
-              <p className="text-text text-lg">{currentQuestion.text}</p>
-            </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${currentTopicIndex}-${currentQuestionIndex}`}
+              variants={questionVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              {/* Phase 7 F6: Timestamp Badge */}
+              {(currentTopic.timestampStart !== undefined || currentTopic.timestampEnd !== undefined) && (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={generateYouTubeTimestampUrl(session.video.url, currentTopic.timestampStart || 0)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border-2 border-primary/30 rounded-full text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>
+                      From video: {formatTimestamp(currentTopic.timestampStart || 0)}
+                      {currentTopic.timestampEnd !== undefined && ` - ${formatTimestamp(currentTopic.timestampEnd)}`}
+                    </span>
+                  </a>
+                  {currentTopic.sectionName && (
+                    <span className="text-xs text-text/60">
+                      ({currentTopic.sectionName})
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {/* Code Editor for programming topics */}
-            {currentTopic.codeExample && (
+              {/* Phase 7 F5: Expandable Topic Summary */}
+              <div className="border-2 border-border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setIsTopicSummaryExpanded(!isTopicSummaryExpanded)}
+                  className="w-full flex items-center justify-between p-3 bg-surface/50 hover:bg-surface transition-colors"
+                  aria-expanded={isTopicSummaryExpanded}
+                  aria-controls="topic-summary"
+                >
+                  <span className="text-sm font-medium text-text/80">
+                    {isTopicSummaryExpanded ? 'Hide topic context' : 'Show topic context'}
+                  </span>
+                  <motion.svg
+                    animate={{ rotate: isTopicSummaryExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-4 h-4 text-text/60"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </motion.svg>
+                </button>
+                <AnimatePresence>
+                  {isTopicSummaryExpanded && (
+                    <motion.div
+                      id="topic-summary"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-3 border-t-2 border-border">
+                        <p className="text-sm text-text/80">{currentTopic.summary}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div>
+                <h2 className="font-heading text-lg font-bold text-text mb-2">
+                  Question
+                </h2>
+                <p className="text-text text-lg">{currentQuestion.text}</p>
+              </div>
+
+            {/* Phase 7 F1: Code Editor for code questions OR legacy programming topics */}
+            {(currentQuestion.isCodeQuestion || currentTopic.codeExample) && (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-heading font-semibold text-text flex items-center gap-2">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                     </svg>
-                    Code Example
-                    {['javascript', 'typescript', 'python'].includes(currentTopic.codeLanguage || '') && (
+                    {/* F1: Show "Code Challenge" for code questions, "Code Example" for legacy */}
+                    {currentQuestion.isCodeQuestion ? 'Code Challenge' : 'Code Example'}
+                    {['javascript', 'typescript', 'python'].includes(currentQuestion.codeChallenge?.language || currentTopic.codeLanguage || '') && (
                       <span className="text-xs text-text/60 font-normal ml-2">(Click Run to execute)</span>
                     )}
-                    {['html', 'css'].includes(currentTopic.codeLanguage || '') && (
+                    {['html', 'css'].includes(currentQuestion.codeChallenge?.language || currentTopic.codeLanguage || '') && (
                       <span className="text-xs text-text/60 font-normal ml-2">(Live Preview)</span>
                     )}
                   </h3>
@@ -656,10 +754,14 @@ export default function ActiveSession() {
                 </div>
                 {showCodeEditor && (
                   <>
-                    {(['javascript', 'typescript', 'python', 'html', 'css'].includes(currentTopic.codeLanguage || 'javascript')) ? (
+                    {/* F1: Use code challenge template if available, otherwise fallback to topic code example */}
+                    {(() => {
+                      const codeToUse = currentQuestion.codeChallenge?.template || currentTopic.codeExample || '';
+                      const languageToUse = currentQuestion.codeChallenge?.language || currentTopic.codeLanguage || 'javascript';
+                      return (['javascript', 'typescript', 'python', 'html', 'css'].includes(languageToUse)) ? (
                       <CodePlayground
-                        initialCode={currentTopic.codeExample}
-                        language={currentTopic.codeLanguage || 'javascript'}
+                        initialCode={codeToUse}
+                        language={languageToUse}
                         onSaveSnippet={(code, lang) => {
                           if (sessionId) {
                             saveSnippet(sessionId, {
@@ -673,12 +775,13 @@ export default function ActiveSession() {
                       />
                     ) : (
                       <CodeEditor
-                        initialCode={currentTopic.codeExample}
-                        language={currentTopic.codeLanguage}
+                        initialCode={codeToUse}
+                        language={languageToUse}
                         readOnly={true}
                         className="max-h-[300px] overflow-auto"
                       />
-                    )}
+                    );
+                    })()}
                   </>
                 )}
               </div>
@@ -707,152 +810,45 @@ export default function ActiveSession() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                onClick={handleSubmitAnswer}
-                loading={loading}
-                disabled={loading || !answer.trim()}
-                className="flex-1"
-              >
-                Submit Answer
-              </Button>
-              <Button variant="ghost" onClick={handleSkip} disabled={loading}>
-                Skip
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => openHelp('session')}
-                disabled={loading}
-                className="sm:ml-auto"
-              >
-                <MaterialIcon name="help_outline" size="sm" className="mr-1" decorative />
-                Get Help
-              </Button>
-            </div>
-          </div>
+            {/* Show buttons only when not showing inline feedback */}
+            {!showInlineFeedback && (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={handleSubmitAnswer}
+                  loading={loading}
+                  disabled={loading || !answer.trim()}
+                  className="flex-1"
+                >
+                  Submit Answer
+                </Button>
+                <Button variant="ghost" onClick={handleSkip} disabled={loading}>
+                  Skip
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => openHelp('session')}
+                  disabled={loading}
+                  className="sm:ml-auto"
+                >
+                  <MaterialIcon name="help_outline" size="sm" className="mr-1" decorative />
+                  Get Help
+                </Button>
+              </div>
+            )}
+
+            {/* Phase 7: Inline Evaluation Feedback */}
+            {inlineEvaluation && (
+              <EvaluationFeedback
+                result={inlineEvaluation}
+                userAnswer={answer}
+                onContinue={handleContinueToSummary}
+                isVisible={showInlineFeedback}
+              />
+            )}
+            </motion.div>
+          </AnimatePresence>
         </Card>
       )}
-
-      {/* Feedback Phase */}
-      {phase === 'feedback' && currentQuestion.feedback && (() => {
-        const feedbackType = detectFeedbackType(currentQuestion.feedback);
-        const isExcellent = feedbackType === 'excellent';
-        const needsImprovement = feedbackType === 'needs-improvement';
-
-        // Color schemes based on feedback type
-        const colors = {
-          excellent: {
-            bg: 'bg-success/20',
-            inner: 'bg-success/40',
-            icon: 'text-success',
-            glow: 'bg-success/10',
-            heading: 'text-success',
-          },
-          good: {
-            bg: 'bg-primary/20',
-            inner: 'bg-primary/40',
-            icon: 'text-text',
-            glow: 'bg-primary/10',
-            heading: 'text-primary',
-          },
-          'needs-improvement': {
-            bg: 'bg-secondary/20',
-            inner: 'bg-secondary/40',
-            icon: 'text-text',
-            glow: 'bg-secondary/10',
-            heading: 'text-secondary',
-          },
-        };
-
-        const c = colors[feedbackType];
-
-        return (
-          <Card className="animate-fade-in">
-            <div className="space-y-6">
-              {/* Feedback Animation */}
-              <div className="flex justify-center animate-scale-in">
-                <div className="relative">
-                  <div className={`w-20 h-20 rounded-full ${c.bg} flex items-center justify-center animate-pulse-subtle`}>
-                    <div className={`w-14 h-14 rounded-full ${c.inner} flex items-center justify-center`}>
-                      {isExcellent ? (
-                        /* Checkmark for excellent answers */
-                        <svg
-                          className={`w-8 h-8 ${c.icon} animate-check-draw`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                        >
-                          <path className="animate-check-path" d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : needsImprovement ? (
-                        /* Lightbulb for learning opportunity */
-                        <svg
-                          className={`w-8 h-8 ${c.icon}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        >
-                          <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                      ) : (
-                        /* Thumbs up for good answers */
-                        <svg
-                          className={`w-8 h-8 ${c.icon}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        >
-                          <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                  {/* Subtle glow effect */}
-                  <div className={`absolute inset-0 rounded-full ${c.glow} animate-ping-slow opacity-0`} />
-                </div>
-              </div>
-
-              {/* Encouraging message for needs-improvement */}
-              {needsImprovement && (
-                <div className="text-center animate-slide-up">
-                  <p className="text-text/70 text-sm italic">
-                    Every question is a learning opportunity! 💡
-                  </p>
-                </div>
-              )}
-
-              <div className="animate-slide-up delay-100">
-                <h2 className="font-heading text-lg font-bold text-text mb-2">
-                  Your Answer
-                </h2>
-                <p className="text-text bg-surface p-3 border-2 border-border">
-                  {currentQuestion.userAnswer}
-                </p>
-              </div>
-
-              <div className="animate-slide-up delay-200">
-                <h2 className={`font-heading text-lg font-bold ${c.heading} mb-2`}>
-                  Feedback
-                </h2>
-                <p className="text-text">{currentQuestion.feedback}</p>
-              </div>
-
-              <Button onClick={handleContinueToSummary} className="w-full animate-slide-up delay-300">
-                Continue to Summary
-              </Button>
-            </div>
-          </Card>
-        );
-      })()}
 
       {/* Summary Phase */}
       {phase === 'summary' && (

@@ -117,7 +117,7 @@ export default function RecommendationCard({
           <img src={thumbnail} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <MaterialIcon name="video_library" size="2xl" className="text-text/30" decorative />
+            <MaterialIcon name="video_library" size="xl" className="text-text/30" decorative />
           </div>
         )}
 

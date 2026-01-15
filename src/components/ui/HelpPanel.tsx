@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import MaterialIcon from './MaterialIcon';
 import Button from './Button';
+import {
+  findRelevantSegments,
+  formatTimestamp,
+  generateYouTubeTimestampUrl,
+} from '../../services/transcript';
+import type { ParsedTranscriptSegment } from '../../types';
 
 // Simple analytics tracking for help panel usage
 interface HelpPanelEvent {
@@ -60,6 +66,15 @@ interface HelpPanelProps {
   questionId?: string;
   /** Session ID for tracking (analytics) */
   sessionId?: string;
+  // Phase 7 F2: Transcript context props
+  /** Parsed transcript segments for current video */
+  transcriptSegments?: ParsedTranscriptSegment[];
+  /** Current timestamp range for the topic (start time in seconds) */
+  currentTimestampStart?: number;
+  /** Current timestamp range for the topic (end time in seconds) */
+  currentTimestampEnd?: number;
+  /** YouTube video URL for "Jump to video" feature */
+  videoUrl?: string;
 }
 
 // Default help content by context
@@ -149,6 +164,11 @@ export default function HelpPanel({
   onTimestampClick,
   questionId,
   sessionId,
+  // Phase 7 F2: Transcript context props
+  transcriptSegments,
+  currentTimestampStart,
+  currentTimestampEnd,
+  videoUrl,
 }: HelpPanelProps) {
   const [isMobile, setIsMobile] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -221,9 +241,22 @@ export default function HelpPanel({
     }
   };
 
-  // Format timestamp for display
-  const formatTimestamp = (timestamp: string) => {
+  // Format timestamp for display (local helper, prefixed to avoid conflict with imported formatTimestamp)
+  const formatTimestampDisplay = (timestamp: string) => {
     return `[${timestamp}]`;
+  };
+
+  // Phase 7 F2: Get relevant transcript excerpts for current topic
+  const relevantExcerpts = transcriptSegments && currentTimestampStart !== undefined && currentTimestampEnd !== undefined
+    ? findRelevantSegments(transcriptSegments, currentTimestampStart, currentTimestampEnd, 3)
+    : [];
+
+  // Phase 7 F2: Handle "Jump to video" click
+  const handleJumpToVideo = (timestampSeconds: number) => {
+    if (videoUrl) {
+      const ytUrl = generateYouTubeTimestampUrl(videoUrl, timestampSeconds);
+      window.open(ytUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const panelContent = (
@@ -247,6 +280,53 @@ export default function HelpPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Phase 7 F2: Transcript Excerpts Section */}
+        {relevantExcerpts.length > 0 && (
+          <div className="p-4 bg-secondary/10 border-3 border-secondary/30">
+            <div className="flex items-center gap-2 mb-3">
+              <MaterialIcon name="subtitles" size="md" className="text-secondary" />
+              <h3 className="font-heading font-bold text-text">
+                Video Context
+              </h3>
+            </div>
+            <p className="text-xs text-text/60 mb-3">
+              Relevant excerpts from the video transcript:
+            </p>
+            <div className="space-y-3">
+              {relevantExcerpts.map((excerpt, index) => (
+                <div
+                  key={index}
+                  className="p-3 bg-surface border-2 border-border rounded"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <button
+                      onClick={() => handleJumpToVideo(excerpt.startTime)}
+                      className="text-xs font-mono text-secondary hover:underline flex items-center gap-1"
+                      aria-label={`Jump to video at ${formatTimestamp(excerpt.startTime)}`}
+                    >
+                      <MaterialIcon name="play_circle" size="sm" className="text-secondary" />
+                      {formatTimestamp(excerpt.startTime)}
+                    </button>
+                  </div>
+                  <p className="text-sm text-text/80 leading-relaxed line-clamp-3">
+                    "{excerpt.text}"
+                  </p>
+                </div>
+              ))}
+            </div>
+            {/* Jump to video section button */}
+            {videoUrl && currentTimestampStart !== undefined && (
+              <button
+                onClick={() => handleJumpToVideo(currentTimestampStart)}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-white font-semibold rounded border-2 border-border hover:bg-secondary/90 transition-colors"
+              >
+                <MaterialIcon name="open_in_new" size="sm" className="text-white" />
+                Watch this section on YouTube
+              </button>
+            )}
+          </div>
+        )}
+
         {helpContent.map((section) => (
           <div
             key={section.id}
@@ -268,7 +348,7 @@ export default function HelpPanel({
                       onClick={() => handleTimestampClick(section.timestamp!)}
                       className="text-xs text-primary font-mono hover:underline"
                     >
-                      {formatTimestamp(section.timestamp)}
+                      {formatTimestampDisplay(section.timestamp)}
                     </button>
                   )}
                 </div>
