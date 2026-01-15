@@ -54,6 +54,17 @@ const supabaseUserToAuthUser = (
   };
 };
 
+// Convert backend /auth/me response to AuthUser format
+export const backendUserToAuthUser = (backendUser: any): AuthUser => ({
+  id: backendUser.id,
+  email: backendUser.email,
+  displayName: backendUser.displayName,
+  emailVerified: backendUser.emailVerified ?? false,
+  tier: backendUser.tier || 'FREE',
+  onboardingCompleted: backendUser.onboardingCompleted ?? false,
+  avatarUrl: backendUser.avatarUrl,
+});
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -77,7 +88,18 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Logout error:', error);
         }
+
+        // Clear auth state
         set({ user: null, accessToken: null, error: null, supabaseSession: null });
+
+        // Clear session store to prevent data leakage between users
+        // Using dynamic import to avoid circular dependency
+        try {
+          const { useSessionStore } = await import('./sessionStore');
+          useSessionStore.getState().clearLibrary();
+        } catch (err) {
+          console.warn('Failed to clear session library:', err);
+        }
       },
 
       isAuthenticated: () => {
@@ -88,6 +110,7 @@ export const useAuthStore = create<AuthState>()(
       // Initialize auth state from Supabase session
       initializeAuth: async () => {
         if (!isSupabaseConfigured()) {
+          console.log('Supabase not configured, skipping auth initialization');
           return;
         }
 
@@ -108,15 +131,30 @@ export const useAuthStore = create<AuthState>()(
               set({
                 user: supabaseUserToAuthUser(session.user, backendUser),
               });
-            } catch {
+            } catch (backendError) {
+              console.warn('Backend user fetch failed, using Supabase data only:', backendError);
               // Backend might not have user yet, use Supabase data
               set({
                 user: supabaseUserToAuthUser(session.user),
               });
             }
+          } else {
+            // No active session
+            set({
+              user: null,
+              accessToken: null,
+              supabaseSession: null,
+            });
           }
         } catch (error) {
           console.error('Failed to initialize auth:', error);
+          // Clear potentially stale state
+          set({
+            user: null,
+            accessToken: null,
+            supabaseSession: null,
+          });
+          throw error; // Re-throw so caller knows init failed
         } finally {
           set({ isLoading: false });
         }
@@ -417,5 +455,18 @@ export const authApi = {
     }
 
     return data;
+  },
+
+  // Refresh user data from backend and update store
+  async refreshUserData(): Promise<AuthUser | null> {
+    try {
+      const backendData = await this.getMe();
+      const authUser = backendUserToAuthUser(backendData);
+      useAuthStore.getState().setUser(authUser);
+      return authUser;
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+      return null;
+    }
   },
 };

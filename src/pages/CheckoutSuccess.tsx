@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Toast from '../components/ui/Toast';
-import { useAuthStore, authApi } from '../stores/authStore';
+import { useAuthStore, authApi, backendUserToAuthUser } from '../stores/authStore';
 import { useDocumentTitle } from '../hooks';
 
 export default function CheckoutSuccess() {
@@ -41,8 +41,8 @@ export default function CheckoutSuccess() {
 
           if (response.ok) {
             // Refresh user data to get updated tier
-            const userData = await authApi.getMe();
-            setUser(userData.user);
+            const backendData = await authApi.getMe();
+            setUser(backendUserToAuthUser(backendData));
             setSuccess(true);
             setToast({ message: 'Welcome to Pro! Your subscription is now active.', type: 'success' });
           } else {
@@ -76,8 +76,8 @@ export default function CheckoutSuccess() {
 
         if (response.ok) {
           // Refresh user data to get updated tier
-          const userData = await authApi.getMe();
-          setUser(userData.user);
+          const backendData = await authApi.getMe();
+          setUser(backendUserToAuthUser(backendData));
           setSuccess(true);
           setToast({ message: 'Welcome to Pro! Your subscription is now active.', type: 'success' });
         } else {

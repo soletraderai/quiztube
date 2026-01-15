@@ -7,17 +7,24 @@ import { useSessionStore } from './stores/sessionStore'
 import './index.css'
 import App from './App.tsx'
 
-// Initialize auth on app startup to fetch fresh user data
-useAuthStore.getState().initializeAuth();
+// Initialize auth and sync sessions on app startup
+const initializeApp = async () => {
+  try {
+    // Wait for auth to initialize
+    await useAuthStore.getState().initializeAuth();
 
-// Sync sessions from cloud if user is already authenticated
-// (Handles case where auth state is restored from localStorage before INITIAL_SESSION fires)
-setTimeout(() => {
-  const { isAuthenticated, accessToken } = useAuthStore.getState();
-  if (isAuthenticated() && accessToken) {
-    useSessionStore.getState().syncWithCloud();
+    // Then sync sessions if authenticated
+    const { isAuthenticated, accessToken } = useAuthStore.getState();
+    if (isAuthenticated() && accessToken) {
+      await useSessionStore.getState().syncWithCloud();
+    }
+  } catch (error) {
+    console.error('App initialization error:', error);
   }
-}, 1000); // Delay to allow auth initialization to complete
+};
+
+// Run initialization (non-blocking for initial render)
+initializeApp();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
