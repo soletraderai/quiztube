@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/ui/Layout';
 import SidebarLayout from './components/ui/SidebarLayout';
@@ -33,12 +34,75 @@ import LearningPathDetail from './pages/LearningPathDetail';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import AuthCallback from './pages/AuthCallback';
+import { useAuthStore } from './stores/authStore';
+import { useSessionStore } from './stores/sessionStore';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+
+// SyncRetryManager handles automatic retry of failed cloud syncs when coming back online
+function SyncRetryManager() {
+  const isOnline = useOnlineStatus();
+  const pendingSyncCount = useSessionStore((s) => s.pendingSyncSessions.length);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+
+  useEffect(() => {
+    // When coming back online with pending syncs and authenticated, retry
+    if (isOnline && pendingSyncCount > 0 && isAuthenticated) {
+      console.log(`Online detected with ${pendingSyncCount} pending syncs. Retrying...`);
+      useSessionStore.getState().retryPendingSyncs();
+    }
+  }, [isOnline, pendingSyncCount, isAuthenticated]);
+
+  return null; // This component doesn't render anything
+}
+
+// AuthInitializer ensures auth is fully initialized before rendering routes
+// This prevents race conditions where routes render before auth state is ready
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const [isReady, setIsReady] = useState(false);
+  const isLoading = useAuthStore((s) => s.isLoading);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // Wait for auth to fully initialize
+        await useAuthStore.getState().initializeAuth();
+
+        // Then sync sessions if authenticated
+        const { isAuthenticated, accessToken } = useAuthStore.getState();
+        if (isAuthenticated() && accessToken) {
+          await useSessionStore.getState().syncWithCloud();
+        }
+      } catch (error) {
+        console.error('App initialization error:', error);
+      } finally {
+        setIsReady(true);
+      }
+    };
+    init();
+  }, []);
+
+  // Show loading spinner while initializing
+  if (!isReady || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-text/70 font-medium">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
 
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <Routes>
+      <AuthInitializer>
+        <SyncRetryManager />
+        <BrowserRouter>
+          <Routes>
           {/* Auth routes - no layout */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -83,8 +147,9 @@ function App() {
 
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/404" replace />} />
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </AuthInitializer>
     </ErrorBoundary>
   );
 }

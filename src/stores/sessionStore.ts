@@ -204,7 +204,50 @@ const sessionApi = {
       console.warn('Failed to log commitment:', error);
     }
   },
+
+  // Delete session from database
+  async deleteSession(localSessionId: string): Promise<void> {
+    const headers = getAuthHeaders();
+    if (!headers) return; // Not authenticated, skip cloud delete
+
+    try {
+      // Find the cloud session by local ID
+      const findResponse = await fetch(`${API_BASE}/sessions`, {
+        headers,
+        credentials: 'include',
+      });
+
+      if (findResponse.ok) {
+        const data = await findResponse.json();
+        const cloudSession = data.sessions?.find((s: any) => {
+          try {
+            return s.sessionData && JSON.parse(s.sessionData).id === localSessionId;
+          } catch {
+            return false;
+          }
+        });
+
+        if (cloudSession) {
+          await fetch(`${API_BASE}/sessions/${cloudSession.id}`, {
+            method: 'DELETE',
+            headers,
+            credentials: 'include',
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to delete session from cloud:', error);
+      throw error; // Re-throw so caller can track the failure
+    }
+  },
 };
+
+// Sync error tracking type
+interface SyncError {
+  error: string;
+  lastAttempt: number;
+  attempts: number;
+}
 
 interface SessionState {
   library: Library;
@@ -213,6 +256,10 @@ interface SessionState {
   isSyncing: boolean;
   lastSyncedAt: number | null;
   migrationDismissed: boolean;
+
+  // Pending sync tracking
+  pendingSyncSessions: string[];
+  syncErrors: Record<string, SyncError>;
 
   // Session management
   createSession: (session: Session) => void;
@@ -240,6 +287,11 @@ interface SessionState {
   // Cloud sync
   syncWithCloud: () => Promise<void>;
 
+  // Pending sync management
+  markSyncFailed: (sessionId: string, error: string) => void;
+  markSyncSuccess: (sessionId: string) => void;
+  retryPendingSyncs: () => Promise<void>;
+
   // Migration
   getLocalSessionCount: () => number;
   migrateLocalSessions: () => Promise<void>;
@@ -260,16 +312,26 @@ export const useSessionStore = create<SessionState>()(
       isSyncing: false,
       lastSyncedAt: null,
       migrationDismissed: false,
+      pendingSyncSessions: [],
+      syncErrors: {},
 
       createSession: (session) => {
-        // Sync to cloud database
-        sessionApi.saveSession(session);
-        return set((state) => ({
+        // Update local state immediately (optimistic update)
+        set((state) => ({
           library: {
             sessions: [session, ...state.library.sessions],
           },
           currentSession: session,
         }));
+
+        // Sync to cloud, track failures (non-blocking)
+        sessionApi.saveSession(session)
+          .then(() => {
+            get().markSyncSuccess(session.id);
+          })
+          .catch((error) => {
+            get().markSyncFailed(session.id, error.message || 'Unknown error');
+          });
       },
 
       updateSession: (sessionId, updates) => {
@@ -285,27 +347,43 @@ export const useSessionStore = create<SessionState>()(
               : state.currentSession,
         }));
 
-        // Sync to cloud after local update
+        // Sync to cloud after local update (non-blocking with error tracking)
         const updatedSession = get().library.sessions.find(s => s.id === sessionId);
         if (updatedSession) {
-          if (updates.status === 'completed') {
-            sessionApi.completeSession(updatedSession);
-          } else {
-            sessionApi.updateSession(updatedSession);
-          }
+          const syncPromise = updates.status === 'completed'
+            ? sessionApi.completeSession(updatedSession)
+            : sessionApi.updateSession(updatedSession);
+
+          syncPromise
+            .then(() => {
+              get().markSyncSuccess(sessionId);
+            })
+            .catch((error) => {
+              get().markSyncFailed(sessionId, error.message || 'Update sync failed');
+            });
         }
 
         return result;
       },
 
-      deleteSession: (sessionId) =>
+      deleteSession: (sessionId) => {
+        // Remove from local state immediately
         set((state) => ({
           library: {
             sessions: state.library.sessions.filter((s) => s.id !== sessionId),
           },
           currentSession:
             state.currentSession?.id === sessionId ? null : state.currentSession,
-        })),
+          // Also remove from pending sync if it was there
+          pendingSyncSessions: state.pendingSyncSessions.filter(id => id !== sessionId),
+        }));
+
+        // Delete from cloud (non-blocking, don't track errors since session is deleted locally)
+        sessionApi.deleteSession(sessionId).catch((error) => {
+          console.warn(`Failed to delete session ${sessionId} from cloud:`, error);
+          // Don't add to pending sync since session is already deleted locally
+        });
+      },
 
       getSession: (sessionId) => {
         const { library } = get();
@@ -527,6 +605,81 @@ export const useSessionStore = create<SessionState>()(
         }
       },
 
+      // Mark a session as failed to sync
+      markSyncFailed: (sessionId: string, error: string) => {
+        set((state) => {
+          const existingError = state.syncErrors[sessionId];
+          const attempts = (existingError?.attempts || 0) + 1;
+
+          // Only track if under max retry attempts (3)
+          if (attempts > 3) {
+            console.error(`Session ${sessionId} failed to sync after ${attempts} attempts. Giving up.`);
+            // Remove from pending after max retries
+            return {
+              pendingSyncSessions: state.pendingSyncSessions.filter(id => id !== sessionId),
+              syncErrors: {
+                ...state.syncErrors,
+                [sessionId]: { error, lastAttempt: Date.now(), attempts },
+              },
+            };
+          }
+
+          return {
+            pendingSyncSessions: state.pendingSyncSessions.includes(sessionId)
+              ? state.pendingSyncSessions
+              : [...state.pendingSyncSessions, sessionId],
+            syncErrors: {
+              ...state.syncErrors,
+              [sessionId]: { error, lastAttempt: Date.now(), attempts },
+            },
+          };
+        });
+      },
+
+      // Mark a session as successfully synced
+      markSyncSuccess: (sessionId: string) => {
+        set((state) => {
+          const { [sessionId]: _, ...remainingErrors } = state.syncErrors;
+          return {
+            pendingSyncSessions: state.pendingSyncSessions.filter(id => id !== sessionId),
+            syncErrors: remainingErrors,
+          };
+        });
+      },
+
+      // Retry syncing all pending sessions
+      retryPendingSyncs: async () => {
+        const { pendingSyncSessions, library, syncErrors } = get();
+        if (pendingSyncSessions.length === 0) return;
+
+        console.log(`Retrying sync for ${pendingSyncSessions.length} sessions...`);
+
+        for (const sessionId of pendingSyncSessions) {
+          const session = library.sessions.find(s => s.id === sessionId);
+          if (!session) {
+            // Session no longer exists, remove from pending
+            get().markSyncSuccess(sessionId);
+            continue;
+          }
+
+          const errorInfo = syncErrors[sessionId];
+          if (errorInfo && errorInfo.attempts >= 3) {
+            console.warn(`Skipping session ${sessionId} - max retries exceeded`);
+            continue;
+          }
+
+          try {
+            await sessionApi.saveSession(session);
+            get().markSyncSuccess(sessionId);
+            console.log(`Successfully synced session ${sessionId}`);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            get().markSyncFailed(sessionId, errorMessage);
+            console.warn(`Failed to retry sync for session ${sessionId}:`, error);
+          }
+        }
+      },
+
       // Get count of local sessions (for migration prompt)
       getLocalSessionCount: () => {
         const { library } = get();
@@ -595,6 +748,8 @@ export const useSessionStore = create<SessionState>()(
           library: { sessions: [] },
           currentSession: null,
           processingState: null,
+          pendingSyncSessions: [],
+          syncErrors: {},
         }),
     }),
     {
@@ -603,6 +758,8 @@ export const useSessionStore = create<SessionState>()(
         library: state.library,
         currentSession: state.currentSession,
         migrationDismissed: state.migrationDismissed,
+        pendingSyncSessions: state.pendingSyncSessions,
+        syncErrors: state.syncErrors,
       }),
     }
   )

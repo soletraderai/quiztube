@@ -189,13 +189,15 @@ if (isSupabaseConfigured()) {
         store.setUser(supabaseUserToAuthUser(session.user));
       }
 
-      // Sync session data from cloud after authentication
-      // Import dynamically to avoid circular dependency
-      import('./sessionStore').then(({ useSessionStore }) => {
-        useSessionStore.getState().syncWithCloud();
-      }).catch(err => {
-        console.warn('Failed to sync sessions from cloud:', err);
-      });
+      // Only sync on SIGNED_IN (user just logged in), not INITIAL_SESSION
+      // INITIAL_SESSION sync is handled by AuthInitializer in App.tsx to avoid race conditions
+      if (event === 'SIGNED_IN') {
+        import('./sessionStore').then(({ useSessionStore }) => {
+          useSessionStore.getState().syncWithCloud();
+        }).catch(err => {
+          console.warn('Failed to sync sessions from cloud:', err);
+        });
+      }
     } else if (event === 'SIGNED_OUT') {
       store.setUser(null);
       store.setAccessToken(null);
