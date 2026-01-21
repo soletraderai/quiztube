@@ -49,9 +49,9 @@ export default function Breadcrumb() {
         items.push({ label: sessionTitle, path: `/session/${sessionId}/overview`, current: true });
       } else if (path.includes('/active')) {
         items.push({ label: sessionTitle, path: `/session/${sessionId}/overview` });
-        items.push({ label: 'Active Session', path: `/session/${sessionId}/active`, current: true });
+        items.push({ label: 'Active Lesson', path: `/session/${sessionId}/active`, current: true });
       } else if (path.includes('/notes')) {
-        items.push({ label: 'Session Notes', path: `/session/${sessionId}/notes`, current: true });
+        items.push({ label: 'Lesson Notes', path: `/session/${sessionId}/notes`, current: true });
       }
 
       return items;

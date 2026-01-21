@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Session, Library, ProcessingState, CodeSnippet, EvaluationResult } from '../types';
+import type { Session, Library, ProcessingState, CodeSnippet, EvaluationResult, SessionProgress } from '../types';
 import { useAuthStore } from './authStore';
 
 const API_BASE = 'http://localhost:3001/api';
@@ -284,6 +284,11 @@ interface SessionState {
   // Code snippets
   saveSnippet: (sessionId: string, snippet: Omit<CodeSnippet, 'id' | 'savedAt'>) => void;
   deleteSnippet: (sessionId: string, snippetId: string) => void;
+
+  // Phase 9: Pause/Resume functionality
+  pauseSession: (sessionId: string) => void;
+  resumeSession: (sessionId: string) => void;
+  updateSessionProgress: (sessionId: string, progress: Partial<SessionProgress>) => void;
 
   // Cloud sync
   syncWithCloud: () => Promise<void>;
@@ -582,6 +587,126 @@ export const useSessionStore = create<SessionState>()(
         if (updatedSession) {
           sessionApi.updateSession(updatedSession);
         }
+      },
+
+      // Phase 9: Pause the current session and save progress
+      pauseSession: (sessionId) => {
+        const session = get().library.sessions.find(s => s.id === sessionId);
+        if (!session) return;
+
+        // Calculate answered questions from all topics
+        const answeredQuestions: string[] = [];
+        session.topics.forEach(topic => {
+          topic.questions.forEach(q => {
+            if (q.userAnswer !== null) {
+              answeredQuestions.push(q.id);
+            }
+          });
+        });
+
+        const progress: SessionProgress = {
+          currentTopicIndex: session.currentTopicIndex,
+          currentQuestionIndex: session.currentQuestionIndex,
+          answeredQuestions,
+          isPaused: true,
+          pausedAt: Date.now(),
+        };
+
+        set((state) => ({
+          library: {
+            sessions: state.library.sessions.map((s) =>
+              s.id === sessionId ? { ...s, progress } : s
+            ),
+          },
+          currentSession:
+            state.currentSession?.id === sessionId
+              ? { ...state.currentSession, progress }
+              : state.currentSession,
+        }));
+
+        // Sync to cloud
+        const updatedSession = get().library.sessions.find(s => s.id === sessionId);
+        if (updatedSession) {
+          sessionApi.updateSession(updatedSession);
+        }
+      },
+
+      // Phase 9: Resume a paused session
+      resumeSession: (sessionId) => {
+        const session = get().library.sessions.find(s => s.id === sessionId);
+        if (!session || !session.progress) return;
+
+        // Restore position from saved progress
+        const { currentTopicIndex, currentQuestionIndex } = session.progress;
+
+        set((state) => ({
+          library: {
+            sessions: state.library.sessions.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    currentTopicIndex,
+                    currentQuestionIndex,
+                    status: 'active' as const,
+                    progress: { ...s.progress!, isPaused: false, pausedAt: undefined },
+                  }
+                : s
+            ),
+          },
+          currentSession:
+            state.currentSession?.id === sessionId
+              ? {
+                  ...state.currentSession,
+                  currentTopicIndex,
+                  currentQuestionIndex,
+                  status: 'active' as const,
+                  progress: { ...state.currentSession.progress!, isPaused: false, pausedAt: undefined },
+                }
+              : state.currentSession,
+        }));
+
+        // Sync to cloud
+        const updatedSession = get().library.sessions.find(s => s.id === sessionId);
+        if (updatedSession) {
+          sessionApi.updateSession(updatedSession);
+        }
+      },
+
+      // Phase 9: Update session progress (for tracking answered questions)
+      updateSessionProgress: (sessionId, progressUpdates) => {
+        set((state) => ({
+          library: {
+            sessions: state.library.sessions.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    progress: {
+                      currentTopicIndex: s.currentTopicIndex,
+                      currentQuestionIndex: s.currentQuestionIndex,
+                      answeredQuestions: [],
+                      isPaused: false,
+                      ...s.progress,
+                      ...progressUpdates,
+                    },
+                  }
+                : s
+            ),
+          },
+          currentSession:
+            state.currentSession?.id === sessionId
+              ? {
+                  ...state.currentSession,
+                  progress: {
+                    currentTopicIndex: state.currentSession.currentTopicIndex,
+                    currentQuestionIndex: state.currentSession.currentQuestionIndex,
+                    answeredQuestions: [],
+                    isPaused: false,
+                    ...state.currentSession.progress,
+                    ...progressUpdates,
+                  },
+                }
+              : state.currentSession,
+        }));
       },
 
       // Fetch sessions from cloud and merge with local sessions

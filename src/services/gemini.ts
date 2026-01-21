@@ -1,11 +1,33 @@
 // Gemini AI service for question generation and answer evaluation
 // Uses server-side proxy to protect API key
-import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality, EvaluationResult, EnhancedTranscriptSegment, ScrapedResource } from '../types';
+import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality, EvaluationResult, EnhancedTranscriptSegment, ScrapedResource, TopicCategory, TopicIcon } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { formatSegmentsForPrompt } from './transcript';
 
 // Note: Transcript proxy (with AI) runs on 3002, API server runs on 3001
 const AI_PROXY_URL = 'http://localhost:3002/api/ai/generate';
+
+// Phase 9: Topic category descriptions for AI prompt guidance
+export const TOPIC_CATEGORIES: Record<TopicCategory, string> = {
+  'concept': 'Core concepts, definitions, and fundamental ideas',
+  'technique': 'Methods, processes, how-to instructions, and procedures',
+  'comparison': 'Comparing alternatives, trade-offs, pros/cons analysis',
+  'example': 'Code examples, demonstrations, and practical illustrations',
+  'application': 'Real-world use cases, practical applications, and implementations',
+  'theory': 'Theoretical foundations, underlying principles, and academic explanations',
+  'best-practice': 'Guidelines, recommendations, conventions, and industry standards',
+};
+
+// Phase 9: Icon mapping based on topic category
+export const TOPIC_ICONS: Record<TopicCategory, TopicIcon> = {
+  'concept': 'lightbulb',
+  'technique': 'wrench',
+  'comparison': 'scale',
+  'example': 'code',
+  'application': 'rocket',
+  'theory': 'book',
+  'best-practice': 'star',
+};
 
 // Custom error class for rate limiting
 export class RateLimitError extends Error {
@@ -308,6 +330,7 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
 
   // For long videos/courses, generate more comprehensive topics (5-7 topics, 2-3 questions each = 12-21 questions)
   // Phase 7.6: Updated to focus on COMPREHENSION, not application
+  // Phase 9: Added category and icon fields
   if (isLongVideo) {
     const rawTopics: Topic[] = [
       {
@@ -322,6 +345,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'concept',
+        icon: 'lightbulb',
       },
       {
         id: generateId(),
@@ -335,6 +360,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'theory',
+        icon: 'book',
       },
       {
         id: generateId(),
@@ -348,6 +375,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'concept',
+        icon: 'lightbulb',
       },
       {
         id: generateId(),
@@ -361,6 +390,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'technique',
+        icon: 'wrench',
       },
       {
         id: generateId(),
@@ -374,6 +405,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'example',
+        icon: 'code',
       },
       {
         id: generateId(),
@@ -387,6 +420,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'best-practice',
+        icon: 'star',
       },
       {
         id: generateId(),
@@ -400,6 +435,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
         bookmarked: false,
         skipped: false,
         completed: false,
+        category: 'concept',
+        icon: 'lightbulb',
       },
     ];
 
@@ -415,6 +452,7 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
 
   // Standard fallback for shorter videos (3 topics, 2 questions each = 6 questions)
   // Phase 7.6: Updated to focus on COMPREHENSION, not application
+  // Phase 9: Added category and icon fields
   const rawTopics: Topic[] = [
     {
       id: generateId(),
@@ -428,6 +466,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
       bookmarked: false,
       skipped: false,
       completed: false,
+      category: 'concept',
+      icon: 'lightbulb',
     },
     {
       id: generateId(),
@@ -441,6 +481,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
       bookmarked: false,
       skipped: false,
       completed: false,
+      category: 'technique',
+      icon: 'wrench',
     },
     {
       id: generateId(),
@@ -454,6 +496,8 @@ function generateFallbackTopics(metadata: VideoMetadata): { topics: Topic[]; est
       bookmarked: false,
       skipped: false,
       completed: false,
+      category: 'best-practice',
+      icon: 'star',
     },
   ];
 
@@ -545,6 +589,35 @@ TIMESTAMP REQUIREMENTS:
   * "sectionName": A descriptive name for this section
 - Estimate timestamps based on where topics appear in the transcript` : '';
 
+  // Phase 9: Category and icon inference instructions
+  const categoryInstructions = `
+
+TOPIC CATEGORY AND ICON REQUIREMENTS:
+For each topic, infer the most appropriate category and provide the matching icon.
+
+CATEGORIES (choose ONE per topic based on the content):
+- "concept": Core concepts, definitions, and fundamental ideas -> icon: "lightbulb"
+- "technique": Methods, processes, how-to instructions -> icon: "wrench"
+- "comparison": Comparing alternatives, trade-offs, pros/cons -> icon: "scale"
+- "example": Code examples, demonstrations, practical illustrations -> icon: "code"
+- "application": Real-world use cases, practical applications -> icon: "rocket"
+- "theory": Theoretical foundations, underlying principles -> icon: "book"
+- "best-practice": Guidelines, recommendations, conventions -> icon: "star"
+
+ICON MAPPING (use the matching icon for the category):
+- concept -> lightbulb
+- technique -> wrench
+- comparison -> scale
+- example -> code
+- application -> rocket
+- theory -> book
+- best-practice -> star
+
+IMPORTANT FOR SUMMARIES:
+- The summary should explain what the topic covers WITHOUT revealing specific answers
+- Do NOT include answer spoilers in the summary
+- Focus on WHAT will be learned, not the actual facts/answers themselves`;
+
   const antiRepetitionRules = `
 
 CRITICAL RULES:
@@ -628,17 +701,19 @@ BAD QUESTION EXAMPLES (NEVER use):
 - "How would you apply this in your work?" (tests application, not understanding)
 - "What best practices should you follow?" (generic, not from video)
 - "Why is this relevant to you?" (personal, not comprehension)
-${questionTypeInstructions}${codeQuestionInstructions}${timestampInstructions}${antiRepetitionRules}${sourceContextInstructions}
+${questionTypeInstructions}${codeQuestionInstructions}${timestampInstructions}${categoryInstructions}${antiRepetitionRules}${sourceContextInstructions}
 
 Format your response as JSON:
 {
   "topics": [
     {
       "title": "Topic Title (specific to this video)",
-      "summary": "What the speaker explains about this topic (2-3 sentences with specific details)",
+      "summary": "What the speaker explains about this topic (2-3 sentences, NO answer spoilers)",
       "sectionName": "Section name from video",
       "timestampStart": 0,
       "timestampEnd": 180,
+      "category": "concept",
+      "icon": "lightbulb",
       "questions": [
         {
           "text": "Question testing recall/understanding of specific content",
@@ -665,14 +740,16 @@ Create questions that would test UNDERSTANDING of the content (not personal appl
 YOUR GOAL: Test whether the viewer UNDERSTOOD and can RECALL what was explained.
 - Questions should have FACTUAL answers based on likely video content
 - Do NOT ask about personal opinions, applications, or future use
-${questionTypeInstructions}${codeQuestionInstructions}${antiRepetitionRules}
+${questionTypeInstructions}${codeQuestionInstructions}${categoryInstructions}${antiRepetitionRules}
 
 Format your response as JSON:
 {
   "topics": [
     {
       "title": "Topic Title (specific to likely content)",
-      "summary": "What this section likely explains",
+      "summary": "What this section likely explains (NO answer spoilers)",
+      "category": "concept",
+      "icon": "lightbulb",
       "questions": [
         {
           "text": "Question testing understanding of specific content",
@@ -714,6 +791,9 @@ Format your response as JSON:
       timestampStart?: number;
       timestampEnd?: number;
       sectionName?: string;
+      // Phase 9: Category and icon fields
+      category?: string;
+      icon?: string;
     }
 
     // Calculate fallback timestamps based on video duration and topic count
@@ -761,6 +841,13 @@ Format your response as JSON:
       timestampStart: t.timestampStart ?? Math.floor(topicIndex * avgTopicDuration),
       timestampEnd: t.timestampEnd ?? Math.floor((topicIndex + 1) * avgTopicDuration),
       sectionName: t.sectionName,
+      // Phase 9: Category and icon (validate and use defaults if invalid)
+      category: (t.category && Object.keys(TOPIC_CATEGORIES).includes(t.category))
+        ? t.category as TopicCategory
+        : 'concept',
+      icon: (t.icon && Object.values(TOPIC_ICONS).includes(t.icon as TopicIcon))
+        ? t.icon as TopicIcon
+        : TOPIC_ICONS[(t.category as TopicCategory) || 'concept'],
     }));
 
     // Phase 7: Validate question diversity (log warning if not met)

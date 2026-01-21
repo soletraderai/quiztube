@@ -105,6 +105,26 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+// Phase 9: Topic category types
+export type TopicCategory =
+  | 'concept'      // Core concepts and definitions
+  | 'technique'    // Methods, processes, how-to
+  | 'comparison'   // Comparing alternatives, trade-offs
+  | 'example'      // Code examples, demonstrations
+  | 'application'  // Practical use cases
+  | 'theory'       // Theoretical foundations
+  | 'best-practice'; // Guidelines and recommendations
+
+// Phase 9: Topic icon identifiers
+export type TopicIcon =
+  | 'lightbulb'    // concept
+  | 'wrench'       // technique
+  | 'scale'        // comparison
+  | 'code'         // example
+  | 'rocket'       // application
+  | 'book'         // theory
+  | 'star';        // best-practice
+
 // Topic type
 export interface Topic {
   id: string;
@@ -122,6 +142,9 @@ export interface Topic {
   timestampStart?: number; // seconds into video
   timestampEnd?: number;   // seconds into video
   sectionName?: string;    // Named section from video (e.g., "Introduction", "Key Concepts")
+  // Phase 9: Topic categorization for UI display
+  category?: TopicCategory;
+  icon?: TopicIcon;
 }
 
 // Code snippet type
@@ -149,6 +172,15 @@ export interface SessionScore {
   questionsNeutral: number;
 }
 
+// Phase 9: Session progress for pause/resume functionality
+export interface SessionProgress {
+  currentTopicIndex: number;
+  currentQuestionIndex: number;
+  answeredQuestions: string[];  // Question IDs that have been answered
+  isPaused: boolean;
+  pausedAt?: number;            // Timestamp when paused
+}
+
 // Session type
 export interface Session {
   id: string;
@@ -171,6 +203,8 @@ export interface Session {
   enhancedSegments?: EnhancedTranscriptSegment[];
   // Phase 8: Scraped external resources from URLs in transcript
   scrapedResources?: ScrapedResource[];
+  // Phase 9: Progress tracking for pause/resume
+  progress?: SessionProgress;
 }
 
 // Structured notes generated from video transcript

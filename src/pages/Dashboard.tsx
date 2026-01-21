@@ -207,7 +207,7 @@ export default function Dashboard() {
                       <p className="font-heading text-2xl font-bold text-text">
                         {commitment.sessionsCompleted}
                       </p>
-                      <p className="text-sm text-text/60">Sessions Today</p>
+                      <p className="text-sm text-text/60">Lessons Today</p>
                     </div>
                   </div>
                 </div>
@@ -234,7 +234,7 @@ export default function Dashboard() {
             </h2>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-text/70">Total Sessions</span>
+                <span className="text-text/70">Total Lessons</span>
                 <span className="font-heading font-bold text-lg">{library.sessions.length}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -278,7 +278,7 @@ export default function Dashboard() {
                 onClick={() => navigate('/', { state: { newSession: true } })}
                 className="w-full px-4 py-3 font-heading font-semibold text-left bg-primary border-3 border-border shadow-brutal hover:shadow-brutal-hover transition-all"
               >
-                Start New Session
+                Start New Lesson
               </button>
               <button
                 onClick={() => navigate('/library')}

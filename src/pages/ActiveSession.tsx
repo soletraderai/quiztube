@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
-import ProgressBar from '../components/ui/ProgressBar';
 import Toast from '../components/ui/Toast';
 import DigDeeperModal from '../components/ui/DigDeeperModal';
 import CodeEditor from '../components/ui/CodeEditor';
@@ -12,6 +11,13 @@ import MaterialIcon from '../components/ui/MaterialIcon';
 import EvaluationFeedback from '../components/ui/EvaluationFeedback';
 import QuestionSourceContext from '../components/ui/QuestionSourceContext';
 import { useHelpContext } from '../components/ui/SidebarLayout';
+// Phase 9: New lesson components
+import {
+  LessonTopBar,
+  CurrentContextCard,
+  LessonBottomBar,
+  ResourcesPanel,
+} from '../components/lesson';
 import { useSessionStore } from '../stores/sessionStore';
 import { evaluateAnswer, RateLimitError, generateFallbackFeedback } from '../services/gemini';
 import { formatTimestamp, generateYouTubeTimestampUrl } from '../services/transcript';
@@ -101,7 +107,7 @@ function calculateOptimalDifficulty(
 }
 
 export default function ActiveSession() {
-  useDocumentTitle('Learning Session');
+  useDocumentTitle('Active Lesson');
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const {
@@ -112,6 +118,7 @@ export default function ActiveSession() {
     updateQuestion,
     updateScore,
     saveSnippet,
+    pauseSession,
   } = useSessionStore();
 
   const [phase, setPhase] = useState<SessionPhase>('question');
@@ -128,8 +135,8 @@ export default function ActiveSession() {
   // Phase 7: Inline evaluation result state
   const [inlineEvaluation, setInlineEvaluation] = useState<EvaluationResult | null>(null);
   const [showInlineFeedback, setShowInlineFeedback] = useState(false);
-  // Phase 7 F5: Expandable topic summary
-  const [isTopicSummaryExpanded, setIsTopicSummaryExpanded] = useState(false);
+  // Phase 9: Resources panel state
+  const [isResourcesOpen, setIsResourcesOpen] = useState(false);
 
   // Help panel context
   const { openHelp, closeHelp, setTranscriptContext, clearTranscriptContext } = useHelpContext();
@@ -154,7 +161,7 @@ export default function ActiveSession() {
           e.preventDefault();
           e.stopPropagation();
           const confirmed = window.confirm(
-            'You have an active learning session. Are you sure you want to leave? Your progress will be saved.'
+            'You have an active lesson. Are you sure you want to leave? Your progress will be saved.'
           );
           if (confirmed) {
             navigate(href);
@@ -242,7 +249,14 @@ export default function ActiveSession() {
   const currentQuestion = currentTopic?.questions[currentQuestionIndex];
 
   const totalTopics = session.topics.length;
-  const completedTopics = session.topics.filter((t) => t.completed || t.skipped).length;
+
+  // Phase 9: Calculate overall progress percentage
+  const totalQuestions = session.topics.reduce((sum, t) => sum + t.questions.length, 0);
+  const answeredQuestions = session.topics.reduce((sum, t) =>
+    sum + t.questions.filter(q => q.userAnswer !== null).length, 0);
+  const overallProgress = totalQuestions > 0
+    ? Math.round((answeredQuestions / totalQuestions) * 100)
+    : 0;
 
   // Handle answer submission
   // Phase 7: Updated to use EvaluationResult and show inline feedback
@@ -442,18 +456,19 @@ export default function ActiveSession() {
       // Phase 7: Reset inline feedback state
       setShowInlineFeedback(false);
       setInlineEvaluation(null);
-      setIsTopicSummaryExpanded(false);
     }
   };
 
-  // Handle end session early
-  const handleEndSession = () => {
-    if (window.confirm('Are you sure you want to end this session? Your progress will be saved.')) {
-      updateSession(session.id, {
-        status: 'completed',
-        completedAt: Date.now(),
-      });
-      navigate(`/session/${sessionId}/notes`);
+  // Phase 9: Handle save lesson (pause and save progress)
+  const handleSaveLesson = () => {
+    if (window.confirm('Save your progress and exit? You can continue later from where you left off.')) {
+      // Use pauseSession to save progress state
+      pauseSession(session.id);
+      setToast({ message: 'Lesson saved. You can continue later from your Library.', type: 'success' });
+      // Navigate to library after a brief delay for toast to show
+      setTimeout(() => {
+        navigate('/library');
+      }, 1000);
     }
   };
 
@@ -469,7 +484,31 @@ export default function ActiveSession() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <>
+      {/* Phase 9: Fixed top navigation bar */}
+      <LessonTopBar
+        topicTitle={currentTopic.title}
+        topicNumber={currentTopicIndex + 1}
+        totalTopics={totalTopics}
+        videoTitle={session.video.title}
+        progress={overallProgress}
+        onBack={() => navigate('/library')}
+        onToggleResources={() => setIsResourcesOpen(!isResourcesOpen)}
+        isResourcesOpen={isResourcesOpen}
+      />
+
+      {/* Phase 9: Resources panel */}
+      <ResourcesPanel
+        isOpen={isResourcesOpen}
+        onClose={() => setIsResourcesOpen(false)}
+        transcript={session.transcriptSegments || []}
+        resources={session.scrapedResources || []}
+        currentTimestamp={currentTopic.timestampStart}
+        videoUrl={session.video.url}
+      />
+
+      {/* Main content with top padding for fixed header and bottom padding for fixed footer */}
+      <div className="max-w-4xl mx-auto space-y-6 pt-24 pb-24 px-4">
       {toast && (
         <Toast
           message={toast.message}
@@ -478,89 +517,14 @@ export default function ActiveSession() {
         />
       )}
 
-      {/* Progress Header */}
-      <Card>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="font-heading text-xl font-bold text-text">
-              Topic {currentTopicIndex + 1} of {totalTopics}
-            </h1>
-            <p className="text-sm text-text/70">{currentTopic.title}</p>
-
-            {/* Phase 7.6 F5: Topic Summary - Redesigned as clickable text */}
-            <button
-              onClick={() => setIsTopicSummaryExpanded(!isTopicSummaryExpanded)}
-              className="mt-2 flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors group"
-              aria-expanded={isTopicSummaryExpanded}
-              aria-controls="topic-summary-content"
-            >
-              <motion.span
-                animate={{ rotate: isTopicSummaryExpanded ? 90 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="inline-block"
-              >
-                <MaterialIcon name="chevron_right" size="sm" className="text-primary" />
-              </motion.span>
-              <span className="group-hover:underline">
-                {isTopicSummaryExpanded ? "Hide topic overview" : "What's this topic about?"}
-              </span>
-            </button>
-            <AnimatePresence>
-              {isTopicSummaryExpanded && (
-                <motion.div
-                  id="topic-summary-content"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <p className="mt-2 text-sm text-text/80 pl-6 pr-2 border-l-2 border-primary/30">
-                    {currentTopic.summary}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Accuracy indicator - shows after answering 3+ questions */}
-            {session.score.questionsAnswered >= 3 && (
-              <div className="text-sm text-center">
-                <span className="font-heading font-semibold">
-                  {Math.round((session.score.questionsCorrect / session.score.questionsAnswered) * 100)}%
-                </span>
-                <span className="text-text/60 ml-1">accuracy</span>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={session.difficulty === 'easier' ? 'primary' : 'ghost'}
-                onClick={() => handleDifficultyChange('easier')}
-              >
-                Easier
-              </Button>
-              <Button
-                size="sm"
-                variant={session.difficulty === 'harder' ? 'primary' : 'ghost'}
-                onClick={() => handleDifficultyChange('harder')}
-              >
-                Harder
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <ProgressBar
-            current={completedTopics}
-            total={totalTopics}
-            label="Progress"
-          />
-        </div>
-      </Card>
+      {/* Phase 9: Current Context Card (replaces Progress Header) */}
+      <CurrentContextCard
+        topic={currentTopic}
+        videoUrl={session.video.url}
+        showDifficultyControls={true}
+        onEasier={() => handleDifficultyChange('easier')}
+        onHarder={() => handleDifficultyChange('harder')}
+      />
 
       {/* Sources Panel */}
       {session.knowledgeBase?.sources && session.knowledgeBase.sources.length > 0 && (
@@ -713,9 +677,18 @@ export default function ActiveSession() {
               )}
 
               <div>
-                <h2 className="font-heading text-lg font-bold text-text mb-2">
-                  Question
-                </h2>
+                {/* Phase 9: Question badge with number and type */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="px-3 py-1 bg-eg-violet text-white text-sm font-heading font-bold">
+                    Question {currentQuestionIndex + 1} of {currentTopic.questions.length}
+                  </span>
+                  {currentQuestion.questionType && (
+                    <span className="text-xs font-heading uppercase tracking-wide text-text/50">
+                      {currentQuestion.questionType}
+                    </span>
+                  )}
+                </div>
+
                 <p className="text-text text-lg">{currentQuestion.text}</p>
 
                 {/* Phase 8.4: Show source context for contextual questions */}
@@ -883,13 +856,6 @@ export default function ActiveSession() {
         </Card>
       )}
 
-      {/* End Session Button */}
-      <div className="text-center">
-        <Button variant="ghost" size="sm" onClick={handleEndSession}>
-          End Session Early
-        </Button>
-      </div>
-
       {/* Dig Deeper Modal */}
       <DigDeeperModal
         isOpen={isDigDeeperOpen}
@@ -899,6 +865,17 @@ export default function ActiveSession() {
         onConversationUpdate={handleDigDeeperConversationUpdate}
         onGenerateQuestion={handleGenerateQuestion}
       />
-    </div>
+      </div>
+
+      {/* Phase 9: Fixed bottom bar (replaces End Session Button) */}
+      <LessonBottomBar
+        onSaveLesson={handleSaveLesson}
+        onSubmitAnswer={phase === 'question' && !showInlineFeedback ? handleSubmitAnswer : undefined}
+        submitLabel="Submit Answer"
+        isSubmitting={loading}
+        canSubmit={!!answer.trim()}
+        showSubmit={phase === 'question' && !showInlineFeedback}
+      />
+    </>
   );
 }

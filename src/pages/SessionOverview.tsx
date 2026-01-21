@@ -10,10 +10,10 @@ import { formatDuration } from '../services/youtube';
 import { useDocumentTitle } from '../hooks';
 
 export default function SessionOverview() {
-  useDocumentTitle('Session Overview');
+  useDocumentTitle('Lesson Overview');
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { getSession, setCurrentSession, updateSession } = useSessionStore();
+  const { getSession, setCurrentSession, updateSession, resumeSession } = useSessionStore();
 
   const session = sessionId ? getSession(sessionId) : undefined;
 
@@ -39,7 +39,7 @@ export default function SessionOverview() {
         <Card className="text-center py-12 max-w-md">
           <div className="space-y-4">
             <h1 className="font-heading text-2xl font-bold text-text">
-              Session Not Found
+              Lesson Not Found
             </h1>
             <p className="text-text/70">
               This session doesn't exist or has been deleted.
@@ -113,6 +113,23 @@ export default function SessionOverview() {
 
   const handleCollapseAll = () => {
     setExpandedTopics(new Set());
+  };
+
+  // Phase 9: Check if session is paused
+  const isPaused = session?.progress?.isPaused ?? false;
+  const pausedProgress = session?.progress;
+
+  // Phase 9: Calculate progress stats for paused sessions
+  const answeredQuestionsCount = session?.topics.reduce((sum, t) =>
+    sum + t.questions.filter(q => q.userAnswer !== null).length, 0) ?? 0;
+
+  // Phase 9: Handle continue from paused state
+  const handleContinue = () => {
+    if (session && sessionId) {
+      resumeSession(sessionId);
+      setToast({ message: 'Resuming lesson from where you left off...', type: 'success' });
+      navigate(`/session/${sessionId}/active`);
+    }
   };
 
   // Apply adjustments and start learning
@@ -393,8 +410,26 @@ export default function SessionOverview() {
         </Card>
       )}
 
-      {/* Start Button */}
+      {/* Start/Continue Button */}
       <div className="flex flex-col items-center gap-4">
+        {/* Phase 9: Show progress indicator for paused sessions */}
+        {isPaused && (
+          <div className="text-center bg-eg-violet/10 border-2 border-eg-violet/30 p-4 rounded-lg max-w-md w-full">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <svg className="w-5 h-5 text-eg-violet" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-heading font-bold text-text">Lesson in Progress</span>
+            </div>
+            <p className="text-sm text-text/70">
+              {answeredQuestionsCount} of {totalQuestions} questions answered
+              {pausedProgress && pausedProgress.currentTopicIndex > 0 && (
+                <> &bull; Topic {pausedProgress.currentTopicIndex + 1} of {session?.topics.length}</>
+              )}
+            </p>
+          </div>
+        )}
+
         {isAdjustMode && selectedTopics.size < session.topics.length && (
           <p className="text-sm text-text/70">
             {selectedTopics.size === 0
@@ -403,17 +438,40 @@ export default function SessionOverview() {
             }
           </p>
         )}
-        <Button
-          size="lg"
-          onClick={handleStartLearning}
-          className="px-12"
-          disabled={isAdjustMode && selectedTopics.size === 0}
-        >
-          {isAdjustMode && selectedTopics.size < session.topics.length
-            ? 'Start with Selected Topics'
-            : 'Start Learning'
-          }
-        </Button>
+
+        {/* Phase 9: Show Continue button for paused sessions, Start for new */}
+        {isPaused ? (
+          <Button
+            size="lg"
+            onClick={handleContinue}
+            className="px-12"
+            variant="pop-violet"
+          >
+            Continue Lesson
+          </Button>
+        ) : (
+          <Button
+            size="lg"
+            onClick={handleStartLearning}
+            className="px-12"
+            disabled={isAdjustMode && selectedTopics.size === 0}
+          >
+            {isAdjustMode && selectedTopics.size < session.topics.length
+              ? 'Start with Selected Topics'
+              : 'Start Learning'
+            }
+          </Button>
+        )}
+
+        {/* Phase 9: Option to start fresh for paused sessions */}
+        {isPaused && (
+          <button
+            onClick={handleStartLearning}
+            className="text-sm text-text/60 hover:text-text/80 underline"
+          >
+            Or start from the beginning
+          </button>
+        )}
       </div>
 
       {/* Toast notification */}

@@ -129,7 +129,7 @@ export default function Home() {
       // Save session to store
       saveSession(session);
 
-      setToast({ message: 'Session created successfully!', type: 'success' });
+      setToast({ message: 'Lesson created!', type: 'success' });
       setUrl('');
 
       // Navigate to session overview
@@ -179,7 +179,7 @@ export default function Home() {
       <Card className="max-w-2xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-4">
           <h2 className="font-heading text-2xl font-bold text-text">
-            Start New Session
+            Start New Lesson
           </h2>
 
           <Input

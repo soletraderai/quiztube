@@ -65,7 +65,7 @@ export default function MigrationPrompt({
             Migration Complete!
           </h2>
           <p className="text-text/70 font-body mb-6">
-            Your {sessionCount} learning {sessionCount === 1 ? 'session has' : 'sessions have'} been
+            Your {sessionCount} learning {sessionCount === 1 ? 'lesson has' : 'lessons have'} been
             successfully migrated to your account. They will now sync across all your devices.
           </p>
 
@@ -104,7 +104,7 @@ export default function MigrationPrompt({
 
         {/* Description */}
         <p className="text-text/70 font-body text-center mb-6">
-          We found <span className="font-bold text-text">{sessionCount} learning {sessionCount === 1 ? 'session' : 'sessions'}</span> stored
+          We found <span className="font-bold text-text">{sessionCount} learning {sessionCount === 1 ? 'lesson' : 'lessons'}</span> stored
           on this device. Would you like to migrate them to your account?
         </p>
 
@@ -116,13 +116,13 @@ export default function MigrationPrompt({
               <svg className="w-5 h-5 text-success flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              <span>Your sessions will be uploaded to your account</span>
+              <span>Your lessons will be uploaded to your account</span>
             </li>
             <li className="flex items-start gap-2">
               <svg className="w-5 h-5 text-success flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              <span>Access your sessions from any device</span>
+              <span>Access your lessons from any device</span>
             </li>
             <li className="flex items-start gap-2">
               <svg className="w-5 h-5 text-success flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

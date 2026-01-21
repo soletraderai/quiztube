@@ -29,7 +29,7 @@ interface Recommendation {
 }
 
 export default function SessionNotes() {
-  useDocumentTitle('Session Notes');
+  useDocumentTitle('Lesson Notes');
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const { getSession, updateSession } = useSessionStore();

@@ -1,4 +1,4 @@
-# Phase [X] Test Checklist
+# Phase 9 Test Checklist
 
 **Phase:** [Phase Name]
 **Tester:** _______________

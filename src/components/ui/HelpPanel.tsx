@@ -99,7 +99,7 @@ const defaultHelpContent: Record<string, HelpSection[]> = {
   session: [
     {
       id: 'session-overview',
-      title: 'Session Overview',
+      title: 'Lesson Overview',
       content: 'Watch the video and answer questions to test your understanding. Questions appear at key points in the content.',
     },
     {
@@ -109,7 +109,7 @@ const defaultHelpContent: Record<string, HelpSection[]> = {
     },
     {
       id: 'session-progress',
-      title: 'Session Progress',
+      title: 'Lesson Progress',
       content: 'Your progress is saved automatically. You can pause and return to continue later.',
     },
   ],
@@ -133,8 +133,8 @@ const defaultHelpContent: Record<string, HelpSection[]> = {
     },
     {
       id: 'session-status',
-      title: 'Session Status',
-      content: 'Sessions show their completion status. Green means complete, yellow means in progress, and gray means not started.',
+      title: 'Lesson Status',
+      content: 'Lessons show their completion status. Green means complete, yellow means in progress, and gray means not started.',
     },
   ],
   default: [
