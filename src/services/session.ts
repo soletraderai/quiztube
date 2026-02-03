@@ -1,7 +1,7 @@
 // Session service for creating and managing learning sessions
-import type { Session, ProcessingState, VideoMetadata, KnowledgeBase, TranscriptSegment, EnhancedTranscriptSegment } from '../types';
+import type { Session, ProcessingState, VideoMetadata, KnowledgeBase, TranscriptSegment, EnhancedTranscriptSegment, ContentAnalysis } from '../types';
 import { extractVideoId, fetchVideoMetadata, fetchTranscript, combineTranscript } from './youtube';
-import { generateTopicsFromVideo, TopicGenerationOptions } from './gemini';
+import { generateTopicsFromVideo, analyzeTranscriptContent, TopicGenerationOptions, RateLimitError } from './gemini';
 import { buildKnowledgeBase, generateSampleSources } from './knowledgeBase';
 import { parseTranscriptSegments, processTranscriptForSession, linkSegmentsToTopics } from './transcript';
 
@@ -41,7 +41,7 @@ export async function createSession(
   // Step 3: Try to extract transcript
   onProgress?.({
     step: 'extracting_transcript',
-    progress: 30,
+    progress: 25,
     message: 'Extracting transcript...',
   });
 
@@ -59,7 +59,7 @@ export async function createSession(
   // Step 4: Build knowledge base from transcript and video info
   onProgress?.({
     step: 'building_knowledge',
-    progress: 50,
+    progress: 45,
     message: 'Building knowledge base...',
   });
 
@@ -78,10 +78,32 @@ export async function createSession(
     preProcessedSegments = processTranscriptForSession(rawSegments as TranscriptSegment[]);
   }
 
+  // Step 4.5: Phase 10 — Content analysis (two-stage pipeline Stage 1)
+  let contentAnalysis: ContentAnalysis | undefined;
+  if (transcript) {
+    onProgress?.({
+      step: 'analyzing_content',
+      progress: 60,
+      message: 'Analyzing content structure...',
+    });
+
+    try {
+      contentAnalysis = await analyzeTranscriptContent(metadata, transcript, preProcessedSegments);
+    } catch (error) {
+      // Silent fallback: if content analysis fails, proceed with single-stage generation
+      if (error instanceof RateLimitError) {
+        console.log('Content analysis skipped: rate limit hit');
+      } else {
+        console.warn('Content analysis failed, falling back to single-stage generation:', error);
+      }
+      contentAnalysis = undefined;
+    }
+  }
+
   // Step 5: Generate topics and questions using Gemini
   onProgress?.({
     step: 'generating_topics',
-    progress: 70,
+    progress: 80,
     message: 'Generating topics and questions...',
   });
 
@@ -93,7 +115,8 @@ export async function createSession(
     const options: TopicGenerationOptions = {
       transcript: transcript || undefined,
       enhancedSegments: preProcessedSegments,
-      // Note: scrapedResources will be added in a future update when resource scraping is integrated
+      // Phase 10: Pass content analysis to enable analysis-aware question generation
+      contentAnalysis,
     };
     const result = await generateTopicsFromVideo(metadata, options);
     topics = result.topics;
@@ -154,6 +177,8 @@ export async function createSession(
     transcriptSegments,
     // Phase 8: Store enhanced transcript segments with IDs and topic linking
     enhancedSegments,
+    // Phase 10: Store content analysis for future use (dig-deeper, evaluation, etc.)
+    contentAnalysis,
   };
 
   return session;

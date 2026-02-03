@@ -105,6 +105,50 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+// Phase 10: Content Analysis types for two-stage question generation pipeline
+export type BloomLevel = 'remember' | 'understand' | 'apply' | 'analyze' | 'evaluate' | 'create';
+export type DOKLevel = 1 | 2 | 3 | 4;
+
+export interface ExtractedConcept {
+  id: string;
+  name: string;
+  definition: string;
+  bloomLevel: BloomLevel;
+  dokLevel: DOKLevel;
+  importance: 'core' | 'supporting' | 'tangential';
+  prerequisites: string[];
+  sourceQuote: string;
+  sourceTimestamp: number;
+  misconceptions: string[];
+}
+
+export interface ConceptRelationship {
+  fromConceptId: string;
+  toConceptId: string;
+  type: 'depends-on' | 'contrasts-with' | 'example-of' | 'part-of' | 'leads-to';
+  explanation: string;
+}
+
+export interface ContentSection {
+  title: string;
+  timestampStart: number;
+  timestampEnd: number;
+  conceptIds: string[];
+  keyExamples: string[];
+  complexityLevel: 'introductory' | 'intermediate' | 'advanced';
+}
+
+export interface ContentAnalysis {
+  videoId: string;
+  analyzedAt: number;
+  concepts: ExtractedConcept[];
+  relationships: ConceptRelationship[];
+  sections: ContentSection[];
+  overallComplexity: 'beginner' | 'intermediate' | 'advanced' | 'mixed';
+  subjectDomain: string;
+  estimatedPrerequisites: string[];
+}
+
 // Phase 9: Topic category types
 export type TopicCategory =
   | 'concept'      // Core concepts and definitions
@@ -205,6 +249,8 @@ export interface Session {
   scrapedResources?: ScrapedResource[];
   // Phase 9: Progress tracking for pause/resume
   progress?: SessionProgress;
+  // Phase 10: Content analysis from two-stage pipeline
+  contentAnalysis?: ContentAnalysis;
 }
 
 // Structured notes generated from video transcript
@@ -260,7 +306,7 @@ export interface EnhancedTranscriptSegment extends ParsedTranscriptSegment {
 
 // Processing state for session creation
 export interface ProcessingState {
-  step: 'fetching_video' | 'extracting_transcript' | 'fetching_resources' | 'building_knowledge' | 'generating_topics' | 'ready';
+  step: 'fetching_video' | 'extracting_transcript' | 'fetching_resources' | 'building_knowledge' | 'analyzing_content' | 'generating_topics' | 'ready';
   progress: number;
   message: string;
 }

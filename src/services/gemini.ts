@@ -1,6 +1,6 @@
 // Gemini AI service for question generation and answer evaluation
 // Uses server-side proxy to protect API key
-import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality, EvaluationResult, EnhancedTranscriptSegment, ScrapedResource, TopicCategory, TopicIcon } from '../types';
+import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality, EvaluationResult, EnhancedTranscriptSegment, ScrapedResource, TopicCategory, TopicIcon, ContentAnalysis } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { formatSegmentsForPrompt } from './transcript';
 
@@ -516,6 +516,124 @@ export interface TopicGenerationOptions {
   transcript?: string;
   enhancedSegments?: EnhancedTranscriptSegment[];
   scrapedResources?: ScrapedResource[];
+  // Phase 10: Content analysis from Stage 1 of two-stage pipeline
+  contentAnalysis?: ContentAnalysis;
+}
+
+// ============================================================================
+// Phase 10: Stage 1 — Content Analysis Engine
+// ============================================================================
+
+/**
+ * Analyze transcript content to extract structured concepts, relationships, and sections.
+ * This is Stage 1 of the two-stage pipeline. Its output feeds into Stage 2 (question generation)
+ * as compressed, structured context instead of raw transcript text.
+ */
+export async function analyzeTranscriptContent(
+  metadata: VideoMetadata,
+  transcript: string,
+  enhancedSegments?: EnhancedTranscriptSegment[]
+): Promise<ContentAnalysis> {
+  const formattedSegments = enhancedSegments && enhancedSegments.length > 0
+    ? `\n\nTRANSCRIPT WITH TIMESTAMPS AND SEGMENT IDs:\n${formatSegmentsForPrompt(enhancedSegments, 60)}`
+    : '';
+
+  const prompt = `You are a content analysis engine. Your ONLY job is to analyze this video transcript and extract a structured understanding of its content. Do NOT generate any questions.
+
+Video Title: "${metadata.title}"
+Channel: ${metadata.channel}
+Duration: ${metadata.duration ? Math.floor(metadata.duration / 60) + ' minutes' : 'Unknown'}
+
+TRANSCRIPT:
+${transcript.slice(0, 15000)}${transcript.length > 15000 ? ' ... (truncated)' : ''}${formattedSegments}
+
+ANALYSIS INSTRUCTIONS:
+1. Extract 5-12 key concepts from the transcript
+2. For each concept, determine:
+   - Bloom's taxonomy level needed to grasp it (remember/understand/apply/analyze/evaluate/create)
+   - Webb's Depth of Knowledge level (1=recall, 2=skill/concept, 3=strategic thinking, 4=extended thinking)
+   - Importance: core (essential to the topic), supporting (helps understand core), or tangential (mentioned but not central)
+   - An EXACT quote from the transcript where this concept is explained
+   - The approximate timestamp (in seconds) where this concept appears
+   - Common misconceptions learners might have about this concept (1-3 per concept)
+3. Identify relationships between concepts (depends-on, contrasts-with, example-of, part-of, leads-to)
+4. Segment the content into 3-5 thematic sections with timestamp ranges
+5. Determine the overall complexity and subject domain
+
+Be analytical and precise. Use low creativity — focus on accurately representing what the transcript contains.
+
+Return JSON matching this EXACT structure:
+{
+  "concepts": [
+    {
+      "id": "concept_1",
+      "name": "Concept Name",
+      "definition": "How the speaker defines/explains this concept",
+      "bloomLevel": "understand",
+      "dokLevel": 2,
+      "importance": "core",
+      "prerequisites": [],
+      "sourceQuote": "Exact quote from transcript",
+      "sourceTimestamp": 120,
+      "misconceptions": ["Common misconception 1"]
+    }
+  ],
+  "relationships": [
+    {
+      "fromConceptId": "concept_1",
+      "toConceptId": "concept_2",
+      "type": "depends-on",
+      "explanation": "Why this relationship exists"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Section Title",
+      "timestampStart": 0,
+      "timestampEnd": 180,
+      "conceptIds": ["concept_1", "concept_2"],
+      "keyExamples": ["Example mentioned by speaker"],
+      "complexityLevel": "introductory"
+    }
+  ],
+  "overallComplexity": "intermediate",
+  "subjectDomain": "e.g., Web Development, Machine Learning, etc.",
+  "estimatedPrerequisites": ["Prior knowledge needed"]
+}`;
+
+  const result = await withRetry(
+    () => callGemini(prompt),
+    2,     // max 2 retries
+    12000  // 12s timeout
+  );
+
+  const jsonStr = extractJson(result);
+  const parsed = JSON.parse(jsonStr);
+
+  // Validate and normalize the response
+  const concepts = (parsed.concepts || []).map((c: Record<string, unknown>, i: number) => ({
+    id: (c.id as string) || `concept_${i + 1}`,
+    name: (c.name as string) || '',
+    definition: (c.definition as string) || '',
+    bloomLevel: c.bloomLevel || 'understand',
+    dokLevel: typeof c.dokLevel === 'number' ? c.dokLevel : 2,
+    importance: c.importance || 'supporting',
+    prerequisites: Array.isArray(c.prerequisites) ? c.prerequisites : [],
+    sourceQuote: (c.sourceQuote as string) || '',
+    sourceTimestamp: typeof c.sourceTimestamp === 'number' ? c.sourceTimestamp : 0,
+    misconceptions: Array.isArray(c.misconceptions) ? c.misconceptions : [],
+  }));
+
+  return {
+    videoId: metadata.id || metadata.url,
+    analyzedAt: Date.now(),
+    concepts,
+    relationships: Array.isArray(parsed.relationships) ? parsed.relationships : [],
+    sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+    overallComplexity: parsed.overallComplexity || 'intermediate',
+    subjectDomain: parsed.subjectDomain || '',
+    estimatedPrerequisites: Array.isArray(parsed.estimatedPrerequisites) ? parsed.estimatedPrerequisites : [],
+  };
 }
 
 // Generate topics and questions from video metadata
@@ -530,12 +648,15 @@ export async function generateTopicsFromVideo(
   let enhancedSegments: EnhancedTranscriptSegment[] | undefined;
   let scrapedResources: ScrapedResource[] | undefined;
 
+  let contentAnalysis: ContentAnalysis | undefined;
+
   if (typeof transcriptOrOptions === 'string') {
     transcript = transcriptOrOptions;
   } else if (transcriptOrOptions) {
     transcript = transcriptOrOptions.transcript;
     enhancedSegments = transcriptOrOptions.enhancedSegments;
     scrapedResources = transcriptOrOptions.scrapedResources;
+    contentAnalysis = transcriptOrOptions.contentAnalysis;
   }
   // Detect if this is a programming/coding tutorial
   const isProgrammingTutorial = /\b(programming|coding|javascript|typescript|python|react|node|java|c\+\+|c#|rust|go|ruby|php|html|css|sql|api|backend|frontend|web dev|software|developer|code|tutorial)\b/i.test(metadata.title);
@@ -672,7 +793,74 @@ Include "relatedResourceIds" array if a question relates to a specific resource.
     ? `\n\nTRANSCRIPT WITH TIMESTAMPS AND SEGMENT IDs:\n${formatSegmentsForPrompt(enhancedSegments, 60)}`
     : '';
 
-  const prompt = transcript
+  // Phase 10: Analysis-aware prompt when content analysis is available
+  const analysisAwarePrompt = contentAnalysis ? `You are creating a comprehension quiz grounded in a structured content analysis of this video.
+
+Video Title: "${metadata.title}"
+Channel: ${metadata.channel}
+Video Duration: ${metadata.duration ? Math.floor(metadata.duration / 60) + ' minutes' : 'Unknown'}
+
+CONTENT ANALYSIS (structured understanding of the video):
+${JSON.stringify(contentAnalysis, null, 2)}
+
+YOUR TASK: Generate 3-5 topics with questions that are GROUNDED in the content analysis above.
+
+TOPIC CREATION RULES:
+- Map each topic directly from the "sections" in the content analysis
+- Each topic's questions should target the concepts listed in that section's "conceptIds"
+- Use the concept's "bloomLevel" to determine the cognitive level of each question
+- Use "sourceQuote" and "sourceTimestamp" from concepts to populate question source fields
+
+COGNITIVE DISTRIBUTION (follow this closely):
+- ~40% of questions at remember/understand level (test recall and comprehension)
+- ~30% of questions at apply/analyze level (test application and relationships)
+- ~20% of questions at evaluate/create level (test judgment and synthesis)
+- ~10% of questions targeting misconceptions identified in the analysis
+
+MISCONCEPTION-TARGETED QUESTIONS:
+- For each concept that has "misconceptions", create at least ONE question that would reveal whether the learner holds that misconception
+- Example: If misconception is "X is the same as Y", ask "What is the key difference between X and Y as explained in the video?"
+
+SYNTHESIS QUESTIONS (use concept relationships):
+- Use "relationships" from the analysis to create questions that connect concepts
+- "depends-on": Ask about prerequisites ("Why must you understand X before Y?")
+- "contrasts-with": Ask about differences ("How does the speaker distinguish X from Y?")
+- "leads-to": Ask about consequences ("According to the video, what does X lead to?")
+
+SOURCE CONTEXT REQUIREMENTS:
+For EVERY question, include:
+- "sourceQuote": From the concept's sourceQuote field
+- "sourceTimestamp": From the concept's sourceTimestamp field
+${questionTypeInstructions}${codeQuestionInstructions}${categoryInstructions}${antiRepetitionRules}
+
+Format your response as JSON:
+{
+  "topics": [
+    {
+      "title": "Topic from content section",
+      "summary": "What this section covers (NO answer spoilers)",
+      "sectionName": "Section name",
+      "timestampStart": 0,
+      "timestampEnd": 180,
+      "category": "concept",
+      "icon": "lightbulb",
+      "questions": [
+        {
+          "text": "Question targeting a specific concept at its Bloom's level",
+          "expectedAnswer": "Answer grounded in the content analysis",
+          "questionType": "comprehension",
+          "isCodeQuestion": false,
+          "sourceQuote": "Exact quote from content analysis",
+          "sourceTimestamp": 45,
+          "sourceSegmentId": ""
+        }
+      ]
+    }
+  ],
+  "estimatedDuration": 15
+}` : null;
+
+  const prompt = analysisAwarePrompt || (transcript
     ? `You are creating a comprehension quiz to test if someone UNDERSTOOD the content of this video.
 
 Video Title: "${metadata.title}"
@@ -761,7 +949,7 @@ Format your response as JSON:
     }
   ],
   "estimatedDuration": 15
-}`;
+}`);
 
   try {
     const response = await callGemini(prompt);
