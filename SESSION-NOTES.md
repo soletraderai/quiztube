@@ -151,3 +151,43 @@ brew services start redis
 **Status:** IN PROGRESS (implementation complete, manual testing pending)
 
 ---
+
+### 2026-02-04: Learning System Documentation (Phase 12)
+
+**Goal:** Create comprehensive documentation for the lesson system architecture, establishing a single source of truth for data structures, terminology, and user experience design.
+
+**Document Created:** `docs/learning-system/learning-overview.md`
+
+**Key Decisions Made:**
+
+| Decision | Resolution |
+|----------|------------|
+| Terminology | "Lesson" (not Session), "Chapters" (not Segments) |
+| Transcript extraction | Apify (likely solution, not confirmed) |
+| External sources | Summaries only (storage conscious) |
+| Source detection | Transcript analysis + video description parsing |
+| Processing log | Structured JSON format |
+| Question evaluation | Three-tier (pass/fail/neutral) for guidance, not grading |
+| Lesson summary | User rating on completion only (not critical) |
+
+**Document Structure (v1.2):**
+
+| Section | Content |
+|---------|---------|
+| 1. Lesson Components | Transcript, Video Metadata, Lesson Content, External Sources, Processing Log, Lesson Summary |
+| 2. Question Evaluation | Three-tier system, score tracking |
+| 3. User Learning Profile | Preferences, progress tracking (not essential) |
+| 4. Data Flow | 7-step processing pipeline |
+| 5. UI Concepts | Initial design patterns (not implemented) |
+| 6. Open Questions | Future considerations |
+| Changelog | Version history |
+
+**Interfaces Defined:**
+- `Chapter` — Transcript chapter with timestamps and content
+- `ExternalSource` — Scraped URL summary with type and relevance
+- `ProcessingLog` / `ProcessingStep` — Gemini decision trail
+- `LessonScore` — Three-tier question tracking
+
+**Status:** COMPLETE
+
+---
