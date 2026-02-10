@@ -43,7 +43,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     });
 
     // 2. Continue series - channels with recent activity but incomplete learning
-    const recentChannels = await prisma.session.groupBy({
+    const recentChannels = await prisma.lesson.groupBy({
       by: ['channelId', 'channelName'],
       where: {
         userId: req.user!.id,
@@ -63,7 +63,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     // Get more details about each channel's sessions
     const continueSeries = await Promise.all(
       recentChannels.map(async (channel) => {
-        const sessions = await prisma.session.findMany({
+        const sessions = await prisma.lesson.findMany({
           where: {
             userId: req.user!.id,
             channelId: channel.channelId,

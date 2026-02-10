@@ -389,7 +389,7 @@ export default function LearningPathDetail() {
                   {/* Thumbnail */}
                   <div
                     className="w-24 h-16 flex-shrink-0 bg-border/20 border-2 border-border overflow-hidden cursor-pointer"
-                    onClick={() => !isReordering && navigate(`/session/${item.sessionId}/notes`)}
+                    onClick={() => !isReordering && navigate(`/lesson/${item.sessionId}/notes`)}
                   >
                     {item.videoThumbnail ? (
                       <img
@@ -409,7 +409,7 @@ export default function LearningPathDetail() {
                     <div className="flex items-start justify-between gap-2">
                       <div
                         className={`flex-1 min-w-0 ${isReordering ? '' : 'cursor-pointer'}`}
-                        onClick={() => !isReordering && navigate(`/session/${item.sessionId}/notes`)}
+                        onClick={() => !isReordering && navigate(`/lesson/${item.sessionId}/notes`)}
                       >
                         <h3 className={`font-heading font-bold truncate ${item.skipped ? 'text-text/50 line-through' : 'text-text'}`}>
                           {item.title}

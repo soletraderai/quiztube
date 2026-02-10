@@ -3,7 +3,7 @@
  * Phase 7: Utilities for parsing and working with video transcripts
  */
 
-import { ParsedTranscriptSegment, TranscriptSegment, EnhancedTranscriptSegment, Topic } from '../types';
+import { ParsedTranscriptSegment, TranscriptSegment, EnhancedTranscriptSegment, Topic, Chapter } from '../types';
 
 /**
  * Parse raw YouTube transcript segments into a standardized format
@@ -414,4 +414,144 @@ export function formatSegmentsForPrompt(
       return `[${start}-${end}] "${segment.text}"`;
     })
     .join('\n');
+}
+
+// ============================================================================
+// Phase 12: Chapter Extraction Functions
+// ============================================================================
+
+/**
+ * Generate a deterministic chapter ID
+ */
+export function generateChapterId(videoId: string, index: number): string {
+  return `ch-${videoId}-${index}`;
+}
+
+/**
+ * Extract chapters from transcript segments and optional YouTube chapter markers.
+ * Falls back to time-based chunking (~5 minute intervals) when no chapters provided.
+ */
+export function extractChapters(
+  segments: ParsedTranscriptSegment[],
+  youtubeChapters?: { title: string; startTime: number }[],
+  videoDuration?: number,
+  videoId?: string
+): Chapter[] {
+  if (segments.length === 0) return [];
+
+  const vid = videoId || 'unknown';
+  const lastSegment = segments[segments.length - 1];
+  const totalDuration = videoDuration || lastSegment.endTime;
+
+  // When YouTube chapters are available, use them
+  if (youtubeChapters && youtubeChapters.length > 1) {
+    return youtubeChapters.map((ch, index) => {
+      const nextStartTime = index < youtubeChapters.length - 1
+        ? youtubeChapters[index + 1].startTime
+        : totalDuration;
+      const endTime = nextStartTime;
+      const duration = endTime - ch.startTime;
+
+      // Collect transcript content within this chapter's time range
+      const content = segments
+        .filter(seg => seg.startTime >= ch.startTime && seg.startTime < endTime)
+        .map(seg => seg.text)
+        .join(' ');
+
+      return {
+        id: generateChapterId(vid, index),
+        title: ch.title,
+        startTime: ch.startTime,
+        endTime,
+        content: content || '',
+        duration,
+      };
+    }).filter(ch => ch.content.length > 0 && ch.duration > 0);
+  }
+
+  // Fallback: time-based chunking (~5 minute intervals)
+  const CHUNK_SECONDS = 300; // 5 minutes
+  const MIN_CHUNK = 60; // 1 minute minimum
+  const MAX_CHUNK = 600; // 10 minute maximum
+  const chapters: Chapter[] = [];
+
+  // For very short videos (<5 min), treat as single chapter
+  if (totalDuration < CHUNK_SECONDS) {
+    const content = segments.map(seg => seg.text).join(' ');
+    const title = content.split(/[.!?]/)[0]?.trim().slice(0, 60) || 'Full Video';
+    return [{
+      id: generateChapterId(vid, 0),
+      title,
+      startTime: 0,
+      endTime: totalDuration,
+      content,
+      duration: totalDuration,
+    }];
+  }
+
+  // Calculate number of chunks
+  let numChunks = Math.max(1, Math.round(totalDuration / CHUNK_SECONDS));
+  let chunkDuration = totalDuration / numChunks;
+
+  // Enforce min/max chunk duration
+  if (chunkDuration < MIN_CHUNK) {
+    numChunks = Math.max(1, Math.floor(totalDuration / MIN_CHUNK));
+    chunkDuration = totalDuration / numChunks;
+  }
+  if (chunkDuration > MAX_CHUNK) {
+    numChunks = Math.ceil(totalDuration / MAX_CHUNK);
+    chunkDuration = totalDuration / numChunks;
+  }
+
+  for (let i = 0; i < numChunks; i++) {
+    const startTime = i * chunkDuration;
+    const endTime = Math.min((i + 1) * chunkDuration, totalDuration);
+
+    const chapterSegments = segments.filter(
+      seg => seg.startTime >= startTime && seg.startTime < endTime
+    );
+    const content = chapterSegments.map(seg => seg.text).join(' ');
+
+    // Generate title from first sentence of content
+    const firstSentence = content.split(/[.!?]/)[0]?.trim() || '';
+    const title = firstSentence.length > 60
+      ? firstSentence.slice(0, 57) + '...'
+      : firstSentence || `Part ${i + 1}`;
+
+    if (content.length > 0) {
+      chapters.push({
+        id: generateChapterId(vid, i),
+        title,
+        startTime,
+        endTime,
+        content,
+        duration: endTime - startTime,
+      });
+    }
+  }
+
+  return chapters;
+}
+
+/**
+ * Link chapters to topics based on timestamp overlap
+ */
+export function linkChaptersToTopics(
+  chapters: Chapter[],
+  topics: Topic[]
+): void {
+  for (const topic of topics) {
+    if (topic.questions) {
+      for (const question of topic.questions) {
+        if (question.sourceTimestamp !== undefined) {
+          const matchingChapter = chapters.find(
+            ch => question.sourceTimestamp! >= ch.startTime && question.sourceTimestamp! < ch.endTime
+          );
+          if (matchingChapter) {
+            question.sourceChapterId = matchingChapter.id;
+          }
+        }
+      }
+    }
+  }
 }

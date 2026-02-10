@@ -226,7 +226,7 @@ export default function Library() {
     if (debouncedSearch.trim()) {
       logSearchSelection(debouncedSearch, sessionId, sessionTitle);
     }
-    navigate(`/session/${sessionId}/notes`);
+    navigate(`/lesson/${sessionId}/notes`);
   };
 
   return (

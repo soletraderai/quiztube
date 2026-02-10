@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Layout from './components/ui/Layout';
 import SidebarLayout from './components/ui/SidebarLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -37,6 +37,12 @@ import AuthCallback from './pages/AuthCallback';
 import { useAuthStore } from './stores/authStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+
+// Phase 12: Redirect /session/:id/:page → /lesson/:id/:page
+function SessionRedirect({ to }: { to: string }) {
+  const params = useParams();
+  return <Navigate to={`/lesson/${params.sessionId}/${to}`} replace />;
+}
 
 // SyncRetryManager handles automatic retry of failed cloud syncs when coming back online
 function SyncRetryManager() {
@@ -142,9 +148,14 @@ function App() {
               <Route path="timed-sessions/history" element={<TimedSessionHistory />} />
               <Route path="timed-sessions/:sessionId/active" element={<TimedSessionActive />} />
               <Route path="timed-sessions/:sessionId/results" element={<TimedSessionResults />} />
-              <Route path="session/:sessionId/overview" element={<SessionOverview />} />
-              <Route path="session/:sessionId/active" element={<ActiveSession />} />
-              <Route path="session/:sessionId/notes" element={<SessionNotes />} />
+              {/* Phase 12: Canonical /lesson/ routes */}
+              <Route path="lesson/:sessionId/overview" element={<SessionOverview />} />
+              <Route path="lesson/:sessionId/active" element={<ActiveSession />} />
+              <Route path="lesson/:sessionId/notes" element={<SessionNotes />} />
+              {/* Backward compat: redirect /session/ → /lesson/ */}
+              <Route path="session/:sessionId/overview" element={<SessionRedirect to="overview" />} />
+              <Route path="session/:sessionId/active" element={<SessionRedirect to="active" />} />
+              <Route path="session/:sessionId/notes" element={<SessionRedirect to="notes" />} />
               <Route path="checkout/success" element={<CheckoutSuccess />} />
             </Route>
           </Route>

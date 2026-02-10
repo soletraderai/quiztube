@@ -42,7 +42,11 @@ export const ROUTES = {
     timedSessionHistory: '/timed-sessions/history',
     timedSessionActive: '/timed-sessions/:sessionId/active',
     timedSessionResults: '/timed-sessions/:sessionId/results',
-    // Learning sessions
+    // Learning sessions (canonical /lesson/ paths)
+    lessonOverview: '/lesson/:lessonId/overview',
+    lessonActive: '/lesson/:lessonId/active',
+    lessonNotes: '/lesson/:lessonId/notes',
+    // Backward compat aliases
     sessionOverview: '/session/:sessionId/overview',
     sessionActive: '/session/:sessionId/active',
     sessionNotes: '/session/:sessionId/notes',
@@ -59,31 +63,36 @@ export const generateRoute = {
   verifyEmail: (token: string) => `/verify-email/${token}`,
   timedSessionActive: (sessionId: string) => `/timed-sessions/${sessionId}/active`,
   timedSessionResults: (sessionId: string) => `/timed-sessions/${sessionId}/results`,
-  sessionOverview: (sessionId: string) => `/session/${sessionId}/overview`,
-  sessionActive: (sessionId: string) => `/session/${sessionId}/active`,
-  sessionNotes: (sessionId: string) => `/session/${sessionId}/notes`,
+  // Phase 12: canonical /lesson/ paths
+  lessonOverview: (lessonId: string) => `/lesson/${lessonId}/overview`,
+  lessonActive: (lessonId: string) => `/lesson/${lessonId}/active`,
+  lessonNotes: (lessonId: string) => `/lesson/${lessonId}/notes`,
+  // Backward compat aliases
+  sessionOverview: (sessionId: string) => `/lesson/${sessionId}/overview`,
+  sessionActive: (sessionId: string) => `/lesson/${sessionId}/active`,
+  sessionNotes: (sessionId: string) => `/lesson/${sessionId}/notes`,
 };
 
 /**
- * Type-safe URL generator for session routes
- * @param sessionId - The session ID
- * @param type - The type of session page to navigate to
- * @returns The full URL path
+ * Type-safe URL generator for lesson routes (Phase 12)
  */
-export function getSessionUrl(
-  sessionId: string,
+export function getLessonUrl(
+  lessonId: string,
   type: 'overview' | 'active' | 'notes' = 'notes'
 ): string {
   switch (type) {
     case 'overview':
-      return generateRoute.sessionOverview(sessionId);
+      return generateRoute.lessonOverview(lessonId);
     case 'active':
-      return generateRoute.sessionActive(sessionId);
+      return generateRoute.lessonActive(lessonId);
     case 'notes':
     default:
-      return generateRoute.sessionNotes(sessionId);
+      return generateRoute.lessonNotes(lessonId);
   }
 }
+
+// Backward compat alias
+export const getSessionUrl = getLessonUrl;
 
 /**
  * Type-safe URL generator for timed session routes

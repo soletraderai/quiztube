@@ -101,7 +101,7 @@ router.get('/export', async (req: AuthenticatedRequest, res: Response, next: Nex
         where: { userId: req.user!.id },
         include: { patterns: true },
       }),
-      prisma.session.findMany({
+      prisma.lesson.findMany({
         where: { userId: req.user!.id },
         include: { topics: true, questions: true },
       }),

@@ -37,7 +37,7 @@ model User {
   subscription       Subscription?
   usageTracking      UsageTracking[]
   refreshTokens      RefreshToken[]
-  sessions           Session[]
+  sessions           Lesson[]
   topics             Topic[]
   followedChannels   FollowedChannel[]
   learningModel      LearningModel?
@@ -180,7 +180,7 @@ model RefreshToken {
 // Learning Sessions
 // ============================================
 
-model Session {
+model Lesson {
   id                 String        @id @default(uuid())
   userId             String        @map("user_id")
   videoId            String        @map("video_id")
@@ -191,7 +191,7 @@ model Session {
   channelId          String        @map("channel_id")
   channelName        String        @map("channel_name")
   transcript         String
-  status             SessionStatus @default(SETUP)
+  status             LessonStatus  @default(SETUP)
   startedAt          DateTime?     @map("started_at")
   completedAt        DateTime?     @map("completed_at")
   timeSpentSeconds   Int           @default(0) @map("time_spent_seconds")
@@ -206,28 +206,33 @@ model Session {
   hasLearningNotes   Boolean       @default(false) @map("has_learning_notes")
   codeContentDetected Boolean      @default(false) @map("code_content_detected")
   creatorEngagementPrompted Boolean @default(false) @map("creator_engagement_prompted")
+  // Phase 12: New JSON fields for lesson components
+  chapters           Json?         @map("chapters")
+  externalSources    Json?         @map("external_sources")
+  processingLog      Json?         @map("processing_log")
+  lessonSummary      Json?         @map("lesson_summary")
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
   user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sources            SessionSource[]
+  sources            LessonSource[]
   topics             Topic[]
   questions          Question[]
   codeSnippets       CodeSnippet[]
-  learningNotes      SessionLearningNotes?
+  learningNotes      LessonLearningNotes?
   creatorEngagements CreatorEngagement[]
 
   @@map("sessions")
 }
 
-enum SessionStatus {
+enum LessonStatus {
   SETUP
   ACTIVE
   COMPLETED
   ABANDONED
 }
 
-model SessionSource {
+model LessonSource {
   id          String     @id @default(uuid())
   sessionId   String     @map("session_id")
   sourceType  SourceType @map("source_type")
@@ -238,7 +243,7 @@ model SessionSource {
   accessedAt  DateTime   @default(now()) @map("accessed_at")
   createdAt   DateTime   @default(now()) @map("created_at")
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session Lesson @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("session_sources")
 }
@@ -272,7 +277,7 @@ model Topic {
   updatedAt          DateTime     @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session      Lesson        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   questions    Question[]
   emailPrompts EmailPrompt[]
 
@@ -305,7 +310,7 @@ model Question {
   createdAt       DateTime         @default(now()) @map("created_at")
 
   topic        Topic                 @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  session      Session               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session      Lesson                @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   noteMappings QuestionNoteMapping[]
 
   @@map("questions")
@@ -501,7 +506,7 @@ model CodeSnippet {
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session Lesson @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("code_snippets")
@@ -554,7 +559,7 @@ enum TimedSessionStatus {
 // Session Learning Notes (AI-Generated)
 // ============================================
 
-model SessionLearningNotes {
+model LessonLearningNotes {
   id            String   @id @default(uuid())
   sessionId     String   @unique @map("session_id")
   notesMarkdown String   @map("notes_markdown") @db.Text
@@ -564,7 +569,7 @@ model SessionLearningNotes {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  session            Session               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session            Lesson                @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   questionNoteMappings QuestionNoteMapping[]
 
   @@map("session_learning_notes")
@@ -578,7 +583,7 @@ model QuestionNoteMapping {
   relevanceScore   Float    @default(1.0) @map("relevance_score")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  sessionNotes SessionLearningNotes @relation(fields: [sessionNotesId], references: [id], onDelete: Cascade)
+  sessionNotes LessonLearningNotes @relation(fields: [sessionNotesId], references: [id], onDelete: Cascade)
   question     Question             @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionNotesId, questionId])
@@ -600,7 +605,7 @@ model CreatorEngagement {
   createdAt      DateTime       @default(now()) @map("created_at")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session Lesson  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId, sessionId], map: "idx_creator_engagements_user_session")
   @@map("creator_engagements")

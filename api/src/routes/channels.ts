@@ -71,7 +71,7 @@ router.get('/search', async (req: AuthenticatedRequest, res: Response, next: Nex
     const query = (req.query.q as string || '').toLowerCase().trim();
 
     // Get all channels from user's sessions
-    const sessions = await prisma.session.findMany({
+    const sessions = await prisma.lesson.findMany({
       where: { userId: req.user!.id },
       select: {
         channelId: true,
@@ -119,7 +119,7 @@ router.get('/feed', async (req: AuthenticatedRequest, res: Response, next: NextF
     const channelIds = followedChannels.map(c => c.channelId);
 
     // Get sessions from followed channels (for tracking watched videos)
-    const userSessions = await prisma.session.findMany({
+    const userSessions = await prisma.lesson.findMany({
       where: {
         channelId: { in: channelIds },
         userId: req.user!.id,
@@ -131,7 +131,7 @@ router.get('/feed', async (req: AuthenticatedRequest, res: Response, next: NextF
 
     // Get recent videos from followed channels to show in feed
     // These are videos from sessions that can be clicked to start a new learning session
-    const feedVideos = await prisma.session.findMany({
+    const feedVideos = await prisma.lesson.findMany({
       where: {
         channelId: { in: channelIds.length > 0 ? channelIds : ['_no_channels_'] },
       },

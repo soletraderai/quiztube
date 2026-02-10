@@ -276,7 +276,7 @@ router.post('/migrate-local-data', async (req: AuthenticatedRequest, res: Respon
     for (const session of sessions) {
       try {
         // Create session from localStorage data
-        await prisma.session.create({
+        await prisma.lesson.create({
           data: {
             userId: req.user!.id,
             videoId: session.video?.id || session.videoId || 'unknown',

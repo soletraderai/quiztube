@@ -53,7 +53,7 @@ export default function SidebarLayout() {
   // Determine help context based on current route
   useEffect(() => {
     const path = location.pathname;
-    if (path.includes('/session/') && path.includes('/active')) {
+    if ((path.includes('/session/') || path.includes('/lesson/')) && path.includes('/active')) {
       setHelpContext('session');
     } else if (path.includes('/review')) {
       setHelpContext('review');

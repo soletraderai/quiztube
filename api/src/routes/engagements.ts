@@ -34,7 +34,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
     }
 
     // Verify session exists and belongs to user
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: {
         id: session_id,
         userId: req.user!.id,

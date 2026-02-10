@@ -157,7 +157,7 @@ export default function ActiveSession() {
       if (link && session?.status === 'active') {
         const href = link.getAttribute('href');
         // Only intercept internal navigation links (not external links or session links)
-        if (href && !href.startsWith('http') && !href.includes('/session/')) {
+        if (href && !href.startsWith('http') && !href.includes('/lesson/') && !href.includes('/session/')) {
           e.preventDefault();
           e.stopPropagation();
           const confirmed = window.confirm(
@@ -239,7 +239,7 @@ export default function ActiveSession() {
   }
 
   if (session.status === 'completed') {
-    navigate(`/session/${sessionId}/notes`);
+    navigate(`/lesson/${sessionId}/notes`);
     return null;
   }
 
@@ -444,7 +444,7 @@ export default function ActiveSession() {
         status: 'completed',
         completedAt: Date.now(),
       });
-      navigate(`/session/${sessionId}/notes`);
+      navigate(`/lesson/${sessionId}/notes`);
     } else {
       // Move to next topic
       updateSession(session.id, {
@@ -476,7 +476,7 @@ export default function ActiveSession() {
     return (
       <Card className="text-center py-12">
         <p>No more topics available.</p>
-        <Button onClick={() => navigate(`/session/${sessionId}/notes`)}>
+        <Button onClick={() => navigate(`/lesson/${sessionId}/notes`)}>
           View Session Notes
         </Button>
       </Card>

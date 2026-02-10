@@ -161,6 +161,7 @@ app.use('/api/email-prompts', publicEmailPromptsRouter);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/subscriptions', authMiddleware, subscriptionRoutes);
 app.use('/api/sessions', authMiddleware, sessionRoutes);
+app.use('/api/lessons', authMiddleware, sessionRoutes);  // Phase 12: canonical path
 app.use('/api/topics', authMiddleware, topicRoutes);
 app.use('/api/ai', authMiddleware, aiRoutes);
 app.use('/api/channels', authMiddleware, channelRoutes);

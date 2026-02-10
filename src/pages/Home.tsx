@@ -8,7 +8,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAuthStore } from '../stores/authStore';
-import { createSession } from '../services/session';
+import { createLesson } from '../services/session';
 import { RateLimitError } from '../services/gemini';
 import { useOnlineStatus, useDocumentTitle } from '../hooks';
 import type { ProcessingState } from '../types';
@@ -121,7 +121,7 @@ export default function Home() {
 
     try {
       // Create the session using our services
-      const session = await createSession(
+      const session = await createLesson(
         trimmedUrl,
         (state) => setProcessingState(state)
       );
@@ -134,7 +134,7 @@ export default function Home() {
 
       // Navigate to session overview
       setTimeout(() => {
-        navigate(`/session/${session.id}/overview`);
+        navigate(`/lesson/${session.id}/overview`);
       }, 500);
     } catch (err) {
       let errorMessage: string;
@@ -237,7 +237,7 @@ export default function Home() {
               <Card
                 key={session.id}
                 className="cursor-pointer hover:shadow-brutal-hover transition-shadow"
-                onClick={() => navigate(`/session/${session.id}/notes`)}
+                onClick={() => navigate(`/lesson/${session.id}/notes`)}
               >
                 {/* Thumbnail */}
                 {session.video.thumbnailUrl && (

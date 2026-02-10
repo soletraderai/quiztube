@@ -5,6 +5,8 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Toast from '../components/ui/Toast';
 import NoTranscriptWarning from '../components/ui/NoTranscriptWarning';
+import { ChapterList } from '../components/lesson/ChapterList';
+import { ExternalSourcesList } from '../components/lesson/ExternalSourcesList';
 import { useSessionStore } from '../stores/sessionStore';
 import { formatDuration } from '../services/youtube';
 import { useDocumentTitle } from '../hooks';
@@ -128,7 +130,7 @@ export default function SessionOverview() {
     if (session && sessionId) {
       resumeSession(sessionId);
       setToast({ message: 'Resuming lesson from where you left off...', type: 'success' });
-      navigate(`/session/${sessionId}/active`);
+      navigate(`/lesson/${sessionId}/active`);
     }
   };
 
@@ -148,7 +150,7 @@ export default function SessionOverview() {
       }
     }
 
-    navigate(`/session/${sessionId}/active`);
+    navigate(`/lesson/${sessionId}/active`);
   };
 
   return (
@@ -217,6 +219,27 @@ export default function SessionOverview() {
       {/* Phase 8: No Transcript Warning */}
       {(!session.transcriptSegments || session.transcriptSegments.length === 0) && (
         <NoTranscriptWarning />
+      )}
+
+      {/* Phase 12: Chapter List */}
+      {session.chapters && session.chapters.length > 0 && (
+        <ChapterList
+          chapters={session.chapters}
+          onChapterClick={(chapter) => {
+            const videoUrl = session.video.url;
+            if (videoUrl) {
+              const url = videoUrl.includes('?')
+                ? `${videoUrl}&t=${Math.floor(chapter.startTime)}s`
+                : `${videoUrl}?t=${Math.floor(chapter.startTime)}s`;
+              window.open(url, '_blank');
+            }
+          }}
+        />
+      )}
+
+      {/* Phase 12: External Sources */}
+      {session.externalSources && session.externalSources.length > 0 && (
+        <ExternalSourcesList sources={session.externalSources} />
       )}
 
       {/* Topics Preview */}

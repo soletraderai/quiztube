@@ -227,7 +227,7 @@ router.post('/:id/answer', async (req: AuthenticatedRequest, res: Response, next
     });
 
     // Update session stats
-    await prisma.session.update({
+    await prisma.lesson.update({
       where: { id: question.sessionId },
       data: {
         questionsAnswered: { increment: 1 },

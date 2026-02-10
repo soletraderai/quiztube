@@ -167,7 +167,7 @@ router.post('/generate-summary', async (req: AuthenticatedRequest, res: Response
 
     const { sessionId } = req.body;
 
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id: sessionId, userId: req.user!.id },
       include: { topics: { include: { questions: true } } },
     });
@@ -211,7 +211,7 @@ Return JSON:
     const summaryData = JSON.parse(jsonMatch[0]);
 
     // Update session with summary
-    await prisma.session.update({
+    await prisma.lesson.update({
       where: { id: sessionId },
       data: {
         aiSummary: summaryData.summary,

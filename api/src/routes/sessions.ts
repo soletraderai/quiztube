@@ -12,13 +12,13 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
     const [sessions, total] = await Promise.all([
-      prisma.session.findMany({
+      prisma.lesson.findMany({
         where: { userId: req.user!.id },
         orderBy: { createdAt: 'desc' },
         skip,
         take: parseInt(limit as string),
       }),
-      prisma.session.count({ where: { userId: req.user!.id } }),
+      prisma.lesson.count({ where: { userId: req.user!.id } }),
     ]);
 
     res.json({
@@ -39,7 +39,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
       include: {
         sources: true,
@@ -85,7 +85,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
-      const sessionsThisMonth = await prisma.session.count({
+      const sessionsThisMonth = await prisma.lesson.count({
         where: {
           userId: req.user!.id,
           createdAt: { gte: startOfMonth },
@@ -102,7 +102,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
       }
     }
 
-    const session = await prisma.session.create({
+    const session = await prisma.lesson.create({
       data: {
         userId: req.user!.id,
         videoId: videoId || 'placeholder',
@@ -136,7 +136,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
       updateData.sessionData = JSON.parse(updateData.sessionData);
     }
 
-    const session = await prisma.session.updateMany({
+    const session = await prisma.lesson.updateMany({
       where: { id, userId: req.user!.id },
       data: updateData,
     });
@@ -145,7 +145,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
       throw new AppError(404, 'Session not found', 'SESSION_NOT_FOUND');
     }
 
-    const updated = await prisma.session.findUnique({ where: { id } });
+    const updated = await prisma.lesson.findUnique({ where: { id } });
     res.json(updated);
   } catch (error) {
     next(error);
@@ -156,7 +156,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response, next: Next
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const session = await prisma.session.deleteMany({
+    const session = await prisma.lesson.deleteMany({
       where: { id, userId: req.user!.id },
     });
 
@@ -174,7 +174,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: Nex
 router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
     });
 
@@ -182,7 +182,7 @@ router.get('/:id/sources', async (req: AuthenticatedRequest, res: Response, next
       throw new AppError(404, 'Session not found', 'SESSION_NOT_FOUND');
     }
 
-    const sources = await prisma.sessionSource.findMany({
+    const sources = await prisma.lessonSource.findMany({
       where: { sessionId: id },
     });
 
@@ -199,7 +199,7 @@ router.post('/:id/sources', async (req: AuthenticatedRequest, res: Response, nex
     const { sources } = req.body;
 
     // Verify session belongs to user
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
     });
 
@@ -226,14 +226,14 @@ router.post('/:id/sources', async (req: AuthenticatedRequest, res: Response, nex
     };
 
     // Delete existing sources for this session (in case of re-generation)
-    await prisma.sessionSource.deleteMany({
+    await prisma.lessonSource.deleteMany({
       where: { sessionId: id },
     });
 
     // Create new sources
     const createdSources = await Promise.all(
       sources.map((source: { url: string; title: string; snippet?: string; type: string }) =>
-        prisma.sessionSource.create({
+        prisma.lessonSource.create({
           data: {
             sessionId: id,
             url: source.url,
@@ -255,7 +255,7 @@ router.post('/:id/sources', async (req: AuthenticatedRequest, res: Response, nex
 router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
     });
 
@@ -269,7 +269,7 @@ router.post('/:id/complete', async (req: AuthenticatedRequest, res: Response, ne
     }
 
     // Update session status to completed
-    const updatedSession = await prisma.session.update({
+    const updatedSession = await prisma.lesson.update({
       where: { id },
       data: {
         status: 'COMPLETED',
@@ -367,7 +367,7 @@ router.get('/:id/notes', async (req: AuthenticatedRequest, res: Response, next: 
     const id = req.params.id as string;
 
     // Verify session belongs to user
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
       include: {
         topics: { include: { questions: true } },
@@ -476,7 +476,7 @@ router.get('/:id/notes', async (req: AuthenticatedRequest, res: Response, next: 
     }
 
     // Save the generated notes
-    const learningNotes = await prisma.sessionLearningNotes.create({
+    const learningNotes = await prisma.lessonLearningNotes.create({
       data: {
         sessionId: session.id,
         notesMarkdown,
@@ -505,7 +505,7 @@ router.post('/:id/notes/generate', async (req: AuthenticatedRequest, res: Respon
     const startTime = Date.now();
 
     // Verify session belongs to user
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
       include: {
         topics: { include: { questions: true } },
@@ -519,7 +519,7 @@ router.post('/:id/notes/generate', async (req: AuthenticatedRequest, res: Respon
 
     // Delete existing notes if they exist
     if (session.learningNotes) {
-      await prisma.sessionLearningNotes.delete({
+      await prisma.lessonLearningNotes.delete({
         where: { id: session.learningNotes.id },
       });
     }
@@ -610,7 +610,7 @@ router.post('/:id/notes/generate', async (req: AuthenticatedRequest, res: Respon
     }
 
     // Save the generated notes
-    const learningNotes = await prisma.sessionLearningNotes.create({
+    const learningNotes = await prisma.lessonLearningNotes.create({
       data: {
         sessionId: session.id,
         notesMarkdown,
@@ -640,7 +640,7 @@ router.get('/:id/creator', async (req: AuthenticatedRequest, res: Response, next
   try {
     const id = req.params.id as string;
 
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
     });
 
@@ -674,7 +674,7 @@ router.get('/:id/creator', async (req: AuthenticatedRequest, res: Response, next
 router.get('/:id/summary', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
     });
 
