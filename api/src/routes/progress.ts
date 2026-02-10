@@ -11,7 +11,7 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response, next: 
     const userId = req.user!.id;
 
     const [sessions, topics, dailyRecords] = await Promise.all([
-      prisma.session.findMany({
+      prisma.lesson.findMany({
         where: { userId, status: 'COMPLETED' },
         select: {
           timeSpentSeconds: true,
@@ -179,7 +179,7 @@ router.get('/export', requirePro, async (req: AuthenticatedRequest, res: Respons
   try {
     const { format = 'json', startDate, endDate } = req.query;
 
-    const sessions = await prisma.session.findMany({
+    const sessions = await prisma.lesson.findMany({
       where: {
         userId: req.user!.id,
         ...(startDate && endDate && {

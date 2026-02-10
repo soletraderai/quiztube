@@ -51,7 +51,7 @@ router.get('/suggestions', requirePro, async (req: AuthenticatedRequest, res: Re
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Get completed sessions in the last 30 days
-    const recentSessions = await prisma.session.findMany({
+    const recentSessions = await prisma.lesson.findMany({
       where: {
         userId: req.user!.id,
         status: 'COMPLETED',

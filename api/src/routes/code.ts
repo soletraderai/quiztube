@@ -37,7 +37,7 @@ router.post('/snippets', requirePro, async (req: AuthenticatedRequest, res: Resp
   try {
     const { sessionId, language, code, output } = req.body;
 
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id: sessionId, userId: req.user!.id },
     });
 
@@ -65,7 +65,7 @@ router.post('/snippets', requirePro, async (req: AuthenticatedRequest, res: Resp
 router.get('/sessions/:id/snippets', requirePro, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const session = await prisma.session.findFirst({
+    const session = await prisma.lesson.findFirst({
       where: { id, userId: req.user!.id },
     });
 

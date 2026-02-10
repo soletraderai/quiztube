@@ -36,7 +36,7 @@ export default function Breadcrumb() {
     }
 
     // Session pages (overview, active, notes)
-    if (path.includes('/session/') && sessionId) {
+    if ((path.includes('/session/') || path.includes('/lesson/')) && sessionId) {
       const session = getSession(sessionId);
       const sessionTitle = session?.video.title
         ? session.video.title.slice(0, 30) + (session.video.title.length > 30 ? '...' : '')
@@ -46,12 +46,12 @@ export default function Breadcrumb() {
       items.push({ label: 'Library', path: '/library' });
 
       if (path.includes('/overview')) {
-        items.push({ label: sessionTitle, path: `/session/${sessionId}/overview`, current: true });
+        items.push({ label: sessionTitle, path: `/lesson/${sessionId}/overview`, current: true });
       } else if (path.includes('/active')) {
-        items.push({ label: sessionTitle, path: `/session/${sessionId}/overview` });
-        items.push({ label: 'Active Lesson', path: `/session/${sessionId}/active`, current: true });
+        items.push({ label: sessionTitle, path: `/lesson/${sessionId}/overview` });
+        items.push({ label: 'Active Lesson', path: `/lesson/${sessionId}/active`, current: true });
       } else if (path.includes('/notes')) {
-        items.push({ label: 'Lesson Notes', path: `/session/${sessionId}/notes`, current: true });
+        items.push({ label: 'Lesson Notes', path: `/lesson/${sessionId}/notes`, current: true });
       }
 
       return items;

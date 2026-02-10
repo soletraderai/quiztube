@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Phase 12: Learning System Documentation**
+  - Created `docs/learning-system/learning-overview.md` as single source of truth for lesson architecture
+  - Defined core terminology: "Lesson" (not Session), "Chapters" (not Segments)
+  - Documented six lesson components: Transcript, Video Metadata, Lesson Content, External Sources, Processing Log, Lesson Summary
+  - Added TypeScript interfaces: `Chapter`, `ExternalSource`, `ProcessingLog`, `ProcessingStep`, `LessonScore`
+  - Defined external source detection from transcript and video description
+  - Documented three-tier question evaluation (pass/fail/neutral) for guidance, not grading
+  - Added 7-step data flow pipeline diagram
+  - Included initial UI concepts for lesson overview, chapter list, and transcript access
+  - Added document versioning with changelog
+
 ### Changed
 - **Phase 11: Rebrand from Teachy to QuizTube**
   - Removed autonomous agent framework artifacts (features.db, prompts/, etc.)
@@ -341,6 +353,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 0.9.0 | 2026-01-13 | Pro features | 372/415 (89.6%) |
 | Unreleased | 2026-01-20 | Phase 8 Contextual Questions | ~415/415 (~100%) |
 | Unreleased | 2026-02-03 | Phase 10 Two-Stage Question Pipeline | ~415/415 (~100%) |
+| Unreleased | 2026-02-04 | Phase 12 Learning System Documentation | ~415/415 (~100%) |
 
 *Note: Feature count increased from 302 to 415 during Phase 2 planning, causing apparent progress decrease.
 

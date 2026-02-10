@@ -5,11 +5,14 @@ import Card from '../components/ui/Card';
 import ProgressBar from '../components/ui/ProgressBar';
 import AnimatedNumber from '../components/ui/AnimatedNumber';
 import CompletionCheckmark from '../components/ui/CompletionCheckmark';
+import { ProcessingLogView } from '../components/lesson/ProcessingLogView';
+import { LessonRating } from '../components/lesson/LessonRating';
+import { ExternalSourcesList } from '../components/lesson/ExternalSourcesList';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAuthStore } from '../stores/authStore';
 import { useDocumentTitle } from '../hooks';
 import { generateStructuredNotes } from '../services/gemini';
-import type { StructuredNotes } from '../types';
+import type { StructuredNotes, LessonSummary } from '../types';
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -149,7 +152,7 @@ export default function SessionNotes() {
         title: 'Continue This Session',
         description: `You still have ${session.topics.filter(t => !t.completed && !t.skipped).length} topic(s) to complete in this session.`,
         action: 'continue',
-        link: `/session/${session.id}/active`,
+        link: `/lesson/${session.id}/active`,
         buttonText: 'Continue Learning'
       });
     }
@@ -177,7 +180,7 @@ export default function SessionNotes() {
         title: `More from ${session.video.channel}`,
         description: `Continue learning with "${relatedSession.video.title.slice(0, 50)}${relatedSession.video.title.length > 50 ? '...' : ''}"`,
         action: 'explore',
-        link: `/session/${relatedSession.id}/notes`,
+        link: `/lesson/${relatedSession.id}/notes`,
         buttonText: 'View Session'
       });
     }
@@ -1392,6 +1395,29 @@ export default function SessionNotes() {
             ))}
           </div>
         </Card>
+      )}
+
+      {/* Phase 12: External Sources */}
+      {session.externalSources && session.externalSources.length > 0 && (
+        <ExternalSourcesList sources={session.externalSources} />
+      )}
+
+      {/* Phase 12: Processing Log */}
+      {session.processingLog && (
+        <ProcessingLogView processingLog={session.processingLog} />
+      )}
+
+      {/* Phase 12: Lesson Rating */}
+      {session.completedAt && (
+        <LessonRating
+          lessonId={session.id}
+          existingSummary={session.summary}
+          onSubmit={(summary: LessonSummary) => {
+            if (sessionId) {
+              updateSession(sessionId, { summary });
+            }
+          }}
+        />
       )}
 
       {/* Actions */}

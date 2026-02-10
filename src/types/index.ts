@@ -63,6 +63,52 @@ export interface KnowledgeBase {
   sources: KnowledgeSource[];
 }
 
+// Phase 12: Chapter structure for transcript organization
+export interface Chapter {
+  id: string;
+  title: string;
+  startTime: number;
+  endTime: number;
+  content: string;
+  duration: number;
+}
+
+// Phase 12: External source referenced in video
+export interface ExternalSource {
+  id: string;
+  url: string;
+  type: 'github' | 'documentation' | 'platform' | 'article' | 'other';
+  title: string;
+  summary: string;
+  relevance: string;
+  extractedAt: string;
+}
+
+// Phase 12: Processing step for pipeline transparency
+export interface ProcessingStep {
+  timestamp: string;
+  stage: 'transcript_fetch' | 'url_detection' | 'source_extraction' | 'content_analysis' | 'question_generation';
+  input: string;
+  decision: string;
+  reasoning: string;
+  output: string;
+  success: boolean;
+}
+
+// Phase 12: Processing log for lesson creation pipeline
+export interface ProcessingLog {
+  lessonId: string;
+  createdAt: string;
+  steps: ProcessingStep[];
+}
+
+// Phase 12: Lesson summary with user rating
+export interface LessonSummary {
+  completedAt: string;
+  userRating: number;
+  feedback?: string;
+}
+
 // Phase 8: Scraped resource from external URLs mentioned in transcript
 export interface ScrapedResource {
   id: string;
@@ -96,6 +142,9 @@ export interface Question {
   sourceTimestamp?: number;       // Timestamp in video where source content appears
   sourceSegmentId?: string;       // ID of the transcript segment
   relatedResourceIds?: string[];  // IDs of scraped resources related to this question
+  // Phase 12: Chapter and external source references
+  sourceChapterId?: string;              // Links question to a specific chapter
+  relatedExternalSourceIds?: string[];   // IDs of external sources related to this question
 }
 
 // Dig deeper conversation message type
@@ -202,8 +251,8 @@ export interface CodeSnippet {
   name?: string;
 }
 
-// Session score type
-export interface SessionScore {
+// Phase 12: Lesson score type (renamed from SessionScore)
+export interface LessonScore {
   topicsCompleted: number;
   topicsSkipped: number;
   questionsAnswered: number;
@@ -216,8 +265,11 @@ export interface SessionScore {
   questionsNeutral: number;
 }
 
-// Phase 9: Session progress for pause/resume functionality
-export interface SessionProgress {
+// Backward compatibility alias
+export type SessionScore = LessonScore;
+
+// Phase 12: Lesson progress for pause/resume functionality (renamed from SessionProgress)
+export interface LessonProgress {
   currentTopicIndex: number;
   currentQuestionIndex: number;
   answeredQuestions: string[];  // Question IDs that have been answered
@@ -225,21 +277,26 @@ export interface SessionProgress {
   pausedAt?: number;            // Timestamp when paused
 }
 
-// Session type
-export interface Session {
+// Backward compatibility alias
+export type SessionProgress = LessonProgress;
+
+// Phase 12: Lesson type (renamed from Session)
+export interface Lesson {
   id: string;
   createdAt: number;
   completedAt: number | null;
   video: VideoMetadata;
   knowledgeBase: KnowledgeBase;
   topics: Topic[];
-  score: SessionScore;
+  score: LessonScore;
   currentTopicIndex: number;
   currentQuestionIndex: number;
   difficulty: 'standard' | 'easier' | 'harder';
   status: 'processing' | 'overview' | 'active' | 'completed';
   savedSnippets?: CodeSnippet[];
   transcript?: string;  // Raw YouTube transcript text for note generation
+  // Phase 12: Structured chapter breakdown
+  chapters?: Chapter[];
   structuredNotes?: StructuredNotes;  // AI-generated structured notes from transcript
   // Phase 7 F2: Parsed transcript segments for help panel context
   transcriptSegments?: ParsedTranscriptSegment[];
@@ -247,11 +304,20 @@ export interface Session {
   enhancedSegments?: EnhancedTranscriptSegment[];
   // Phase 8: Scraped external resources from URLs in transcript
   scrapedResources?: ScrapedResource[];
-  // Phase 9: Progress tracking for pause/resume
-  progress?: SessionProgress;
+  // Phase 12: External sources referenced in video
+  externalSources?: ExternalSource[];
+  // Phase 12: Lesson progress tracking for pause/resume (renamed from SessionProgress)
+  progress?: LessonProgress;
   // Phase 10: Content analysis from two-stage pipeline
   contentAnalysis?: ContentAnalysis;
+  // Phase 12: Processing log for pipeline transparency
+  processingLog?: ProcessingLog;
+  // Phase 12: Lesson summary with user rating
+  summary?: LessonSummary;
 }
+
+// Backward compatibility alias
+export type Session = Lesson;
 
 // Structured notes generated from video transcript
 export interface NoteSection {
@@ -268,19 +334,22 @@ export interface StructuredNotes {
   summary: string;
 }
 
-// Library type (collection of sessions)
+// Library type (collection of lessons)
 export interface Library {
-  sessions: Session[];
+  sessions: Lesson[];
 }
 
-// Session overview for display
-export interface SessionOverview {
+// Phase 12: Lesson overview for display (renamed from SessionOverview)
+export interface LessonOverview {
   video: VideoMetadata;
   topicCount: number;
   questionCount: number;
   estimatedDuration: number;
   topics: { id: string; title: string }[];
 }
+
+// Backward compatibility alias
+export type SessionOverview = LessonOverview;
 
 // API response types (raw YouTube format)
 export interface TranscriptSegment {
@@ -304,9 +373,9 @@ export interface EnhancedTranscriptSegment extends ParsedTranscriptSegment {
   topicId?: string;        // Link to associated topic by timestamp overlap
 }
 
-// Processing state for session creation
+// Processing state for lesson creation
 export interface ProcessingState {
-  step: 'fetching_video' | 'extracting_transcript' | 'fetching_resources' | 'building_knowledge' | 'analyzing_content' | 'generating_topics' | 'ready';
+  step: 'fetching_video' | 'extracting_transcript' | 'detecting_sources' | 'extracting_summaries' | 'fetching_resources' | 'building_knowledge' | 'analyzing_content' | 'generating_topics' | 'ready';
   progress: number;
   message: string;
 }

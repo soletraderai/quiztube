@@ -1,30 +1,35 @@
-// Session service for creating and managing learning sessions
-import type { Session, ProcessingState, VideoMetadata, KnowledgeBase, TranscriptSegment, EnhancedTranscriptSegment, ContentAnalysis } from '../types';
+// Lesson service for creating and managing learning lessons (renamed from session)
+import type { Lesson, ProcessingState, VideoMetadata, KnowledgeBase, TranscriptSegment, EnhancedTranscriptSegment, ContentAnalysis, Chapter, ExternalSource, ProcessingLog } from '../types';
 import { extractVideoId, fetchVideoMetadata, fetchTranscript, combineTranscript } from './youtube';
 import { generateTopicsFromVideo, analyzeTranscriptContent, TopicGenerationOptions, RateLimitError } from './gemini';
 import { buildKnowledgeBase, generateSampleSources } from './knowledgeBase';
-import { parseTranscriptSegments, processTranscriptForSession, linkSegmentsToTopics } from './transcript';
+import { parseTranscriptSegments, processTranscriptForSession, linkSegmentsToTopics, extractChapters, linkChaptersToTopics } from './transcript';
+import { detectSources, extractSourceSummaries } from './externalSources';
+import { PipelineLogger } from './processingLog';
 
-// Generate unique session ID
+// Generate unique lesson ID
 export function generateSessionId(): string {
   return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Session creation progress callback type
+// Lesson creation progress callback type
 export type ProgressCallback = (state: ProcessingState) => void;
 
-// Create a new learning session from a YouTube URL
-export async function createSession(
+// Create a new learning lesson from a YouTube URL
+export async function createLesson(
   youtubeUrl: string,
   onProgress?: ProgressCallback
-): Promise<Session> {
+): Promise<Lesson> {
+  const lessonId = generateSessionId();
+  const logger = new PipelineLogger(lessonId);
+
   // Step 1: Extract video ID
   const videoId = extractVideoId(youtubeUrl);
   if (!videoId) {
     throw new Error('Invalid YouTube URL. Please enter a valid YouTube video URL.');
   }
 
-  // Step 2: Fetch video metadata
+  // Step 2: Fetch video metadata (10%)
   onProgress?.({
     step: 'fetching_video',
     progress: 10,
@@ -32,53 +37,131 @@ export async function createSession(
   });
 
   let metadata: VideoMetadata;
+  let videoDescription = '';
   try {
-    metadata = await fetchVideoMetadata(videoId);
+    const result = await fetchVideoMetadata(videoId);
+    metadata = result;
+    // The proxy server now returns description
+    videoDescription = (result as any).description || '';
   } catch (error) {
     throw new Error(`Failed to fetch video information: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
-  // Step 3: Try to extract transcript
+  // Step 3: Extract transcript + chapters (20%)
   onProgress?.({
     step: 'extracting_transcript',
-    progress: 25,
-    message: 'Extracting transcript...',
+    progress: 20,
+    message: 'Extracting transcript & chapters...',
   });
 
   let transcript = '';
-  // Phase 7 F2: Also store raw segments for parsing into help panel context
   let rawSegments: Array<{ text: string; duration: number; offset: number }> = [];
+  let youtubeChapters: { title: string; startTime: number }[] = [];
   try {
-    rawSegments = await fetchTranscript(videoId);
+    const transcriptResult = await fetchTranscript(videoId);
+    rawSegments = transcriptResult;
     transcript = combineTranscript(rawSegments);
+    // YouTube chapters are returned by the proxy alongside transcript
+    youtubeChapters = (transcriptResult as any).chapters || [];
   } catch (error) {
     console.log('Transcript extraction note:', error);
-    // Continue without transcript - Gemini will work with metadata only
   }
 
-  // Step 4: Build knowledge base from transcript and video info
+  // Extract chapters from transcript segments
+  const transcriptSegments = rawSegments.length > 0
+    ? parseTranscriptSegments(rawSegments)
+    : undefined;
+
+  let chapters: Chapter[] = [];
+  if (transcriptSegments && transcriptSegments.length > 0) {
+    chapters = extractChapters(
+      transcriptSegments,
+      youtubeChapters.length > 0 ? youtubeChapters : undefined,
+      metadata.duration,
+      videoId
+    );
+  }
+
+  logger.logStep(
+    'transcript_fetch',
+    `Video ID: ${videoId}`,
+    `Fetched ${rawSegments.length} segments, ${transcript.length} chars`,
+    'Used youtube-captions-api via proxy server',
+    `${chapters.length} chapters extracted`,
+    true
+  );
+
+  // Step 4: Detect external sources (30%)
+  let detectedUrls: { url: string; foundIn: 'transcript' | 'description' }[] = [];
+  let externalSources: ExternalSource[] = [];
+
+  try {
+    onProgress?.({
+      step: 'detecting_sources',
+      progress: 30,
+      message: 'Detecting external sources...',
+    });
+
+    detectedUrls = detectSources(transcript, videoDescription);
+
+    logger.logStep(
+      'url_detection',
+      `Scanned transcript (${transcript.length} chars) and description`,
+      `Found ${detectedUrls.length} URLs`,
+      `Detected in: ${detectedUrls.filter(u => u.foundIn === 'transcript').length} transcript, ${detectedUrls.filter(u => u.foundIn === 'description').length} description`,
+      `URLs: ${detectedUrls.map(u => u.url).join(', ')}`,
+      true
+    );
+  } catch (error) {
+    console.log('Source detection failed, continuing without sources:', error);
+    logger.logStep('url_detection', 'Scan failed', 'No URLs detected', String(error), '', false);
+  }
+
+  // Step 5: Extract source summaries (40%)
+  try {
+    if (detectedUrls.length > 0) {
+      onProgress?.({
+        step: 'extracting_summaries',
+        progress: 40,
+        message: 'Summarizing referenced sources...',
+      });
+
+      externalSources = await extractSourceSummaries(detectedUrls, metadata.title);
+    }
+
+    logger.logStep(
+      'source_extraction',
+      `${detectedUrls.length} URLs to process`,
+      `Summarized ${externalSources.length} sources`,
+      `Types: ${externalSources.map(s => s.type).join(', ')}`,
+      `Sources: ${externalSources.map(s => s.title).join(', ')}`,
+      externalSources.length > 0 || detectedUrls.length === 0
+    );
+  } catch (error) {
+    console.log('Source extraction failed, continuing without sources:', error);
+    logger.logStep('source_extraction', `${detectedUrls.length} URLs`, 'Extraction failed', String(error), '', false);
+    externalSources = [];
+  }
+
+  // Step 6: Build knowledge base (50%)
   onProgress?.({
     step: 'building_knowledge',
-    progress: 45,
+    progress: 50,
     message: 'Building knowledge base...',
   });
 
-  // Build knowledge base from extracted URLs or generate sample sources
   let knowledgeBase: KnowledgeBase = buildKnowledgeBase(transcript || undefined);
-
-  // If no URLs were extracted, generate sample sources based on video topic
   if (knowledgeBase.sources.length === 0) {
     knowledgeBase = generateSampleSources(metadata.title);
   }
 
-  // Phase 8: Process enhanced segments BEFORE topic generation so we can pass them to the AI
-  // This enables contextual question generation with source quotes and timestamps
+  // Phase 8: Process enhanced segments BEFORE topic generation
   let preProcessedSegments: EnhancedTranscriptSegment[] | undefined;
   if (rawSegments.length > 0) {
     preProcessedSegments = processTranscriptForSession(rawSegments as TranscriptSegment[]);
   }
 
-  // Step 4.5: Phase 10 — Content analysis (two-stage pipeline Stage 1)
+  // Step 7: Content analysis (60%)
   let contentAnalysis: ContentAnalysis | undefined;
   if (transcript) {
     onProgress?.({
@@ -90,7 +173,6 @@ export async function createSession(
     try {
       contentAnalysis = await analyzeTranscriptContent(metadata, transcript, preProcessedSegments);
     } catch (error) {
-      // Silent fallback: if content analysis fails, proceed with single-stage generation
       if (error instanceof RateLimitError) {
         console.log('Content analysis skipped: rate limit hit');
       } else {
@@ -100,22 +182,29 @@ export async function createSession(
     }
   }
 
-  // Step 5: Generate topics and questions using Gemini
+  logger.logStep(
+    'content_analysis',
+    `Transcript with ${chapters.length} chapters`,
+    `Identified ${contentAnalysis?.concepts?.length || 0} concepts`,
+    `Domain: ${contentAnalysis?.subjectDomain || 'unknown'}, Complexity: ${contentAnalysis?.overallComplexity || 'unknown'}`,
+    `Concepts: ${contentAnalysis?.concepts?.map(c => c.name).join(', ') || 'none'}`,
+    !!contentAnalysis
+  );
+
+  // Step 8: Generate topics and questions (80%)
   onProgress?.({
     step: 'generating_topics',
     progress: 80,
-    message: 'Generating topics and questions...',
+    message: 'Generating topics & questions...',
   });
 
   let topics;
   let estimatedDuration;
 
   try {
-    // Phase 8: Pass enhanced segments and knowledge base sources to topic generation
     const options: TopicGenerationOptions = {
       transcript: transcript || undefined,
       enhancedSegments: preProcessedSegments,
-      // Phase 10: Pass content analysis to enable analysis-aware question generation
       contentAnalysis,
     };
     const result = await generateTopicsFromVideo(metadata, options);
@@ -125,32 +214,42 @@ export async function createSession(
     throw new Error(`Failed to generate learning content: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
-  // Only set duration from estimate if actual duration wasn't fetched
+  logger.logStep(
+    'question_generation',
+    `${topics.length} topics requested`,
+    `Generated ${topics.length} topics with ${topics.reduce((sum, t) => sum + t.questions.length, 0)} questions`,
+    `Used ${contentAnalysis ? 'two-stage' : 'single-stage'} pipeline`,
+    `Topics: ${topics.map(t => t.title).join(', ')}`,
+    topics.length > 0
+  );
+
   if (!metadata.duration || metadata.duration === 0) {
-    metadata.duration = estimatedDuration * 60; // Convert to seconds
+    metadata.duration = estimatedDuration * 60;
   }
 
-  // Step 6: Create session object
-  onProgress?.({
-    step: 'ready',
-    progress: 100,
-    message: 'Session ready!',
-  });
-
-  // Phase 7 F2: Parse raw segments for help panel context
-  const transcriptSegments = rawSegments.length > 0
-    ? parseTranscriptSegments(rawSegments)
-    : undefined;
-
-  // Phase 8: Link pre-processed enhanced segments to topics now that we have both
-  // (preProcessedSegments were created before topic generation for AI context)
+  // Link enhanced segments to topics
   let enhancedSegments = preProcessedSegments;
   if (enhancedSegments && topics.length > 0) {
     enhancedSegments = linkSegmentsToTopics(enhancedSegments, topics);
   }
 
-  const session: Session = {
-    id: generateSessionId(),
+  // Link chapters to topic questions
+  if (chapters.length > 0 && topics.length > 0) {
+    linkChaptersToTopics(chapters, topics);
+  }
+
+  // Finalize processing log
+  const processingLog: ProcessingLog = logger.finalize();
+
+  // Step 9: Create lesson object (100%)
+  onProgress?.({
+    step: 'ready',
+    progress: 100,
+    message: 'Lesson ready!',
+  });
+
+  const lesson: Lesson = {
+    id: lessonId,
     createdAt: Date.now(),
     completedAt: null,
     video: metadata,
@@ -163,7 +262,6 @@ export async function createSession(
       questionsCorrect: 0,
       bookmarkedTopics: 0,
       digDeeperCount: 0,
-      // Phase 7: Three-tier evaluation counts
       questionsPassed: 0,
       questionsFailed: 0,
       questionsNeutral: 0,
@@ -172,34 +270,34 @@ export async function createSession(
     currentQuestionIndex: 0,
     difficulty: 'standard',
     status: 'overview',
-    transcript: transcript || undefined,  // Store transcript for note generation
-    // Phase 7 F2: Store parsed transcript segments for help panel
+    transcript: transcript || undefined,
+    chapters: chapters.length > 0 ? chapters : undefined,
     transcriptSegments,
-    // Phase 8: Store enhanced transcript segments with IDs and topic linking
     enhancedSegments,
-    // Phase 10: Store content analysis for future use (dig-deeper, evaluation, etc.)
+    externalSources: externalSources.length > 0 ? externalSources : undefined,
     contentAnalysis,
+    processingLog,
   };
 
-  return session;
+  return lesson;
 }
 
-// Resume an existing session
-export function resumeSession(session: Session): Session {
-  // If session was completed, don't change status
+// Backward compatibility alias
+export const createSession = createLesson;
+
+// Resume an existing lesson
+export function resumeSession(session: Lesson): Lesson {
   if (session.status === 'completed') {
     return session;
   }
-
-  // Otherwise, set to active
   return {
     ...session,
     status: 'active',
   };
 }
 
-// Complete a session
-export function completeSession(session: Session): Session {
+// Complete a lesson
+export function completeSession(session: Lesson): Lesson {
   return {
     ...session,
     status: 'completed',
@@ -207,8 +305,8 @@ export function completeSession(session: Session): Session {
   };
 }
 
-// Calculate session statistics
-export function calculateSessionStats(session: Session) {
+// Calculate lesson statistics
+export function calculateSessionStats(session: Lesson) {
   const totalTopics = session.topics.length;
   const completedTopics = session.topics.filter(t => t.completed).length;
   const skippedTopics = session.topics.filter(t => t.skipped).length;

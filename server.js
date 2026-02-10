@@ -8,6 +8,32 @@ import { YouTubeTranscriptApi } from 'youtube-captions-api';
 const app = express();
 const PORT = process.env.PROXY_PORT || process.env.PORT || 3002;
 
+// Phase 12: Extract chapter markers from YouTube video description
+function extractChaptersFromDescription(description) {
+  if (!description) return [];
+
+  const chapters = [];
+  // Match lines starting with timestamps like 0:00, 1:23, 01:23, 1:23:45
+  const lines = description.split('\n');
+  const timestampRegex = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)/;
+
+  for (const line of lines) {
+    const match = line.trim().match(timestampRegex);
+    if (match) {
+      const hours = match[1] ? parseInt(match[1], 10) : 0;
+      const minutes = parseInt(match[2], 10);
+      const seconds = parseInt(match[3], 10);
+      const startTime = hours * 3600 + minutes * 60 + seconds;
+      const title = match[4].trim();
+      if (title.length > 0) {
+        chapters.push({ title, startTime });
+      }
+    }
+  }
+
+  return chapters;
+}
+
 // Enable CORS for frontend origin with credentials support
 // Accept multiple localhost ports since Vite may use 5173, 5174, 5175, etc.
 app.use(cors({
@@ -81,6 +107,9 @@ app.get('/api/video/:videoId', async (req, res) => {
     const videoDetails = playerData.videoDetails;
     const durationSeconds = parseInt(videoDetails.lengthSeconds) || 0;
 
+    // Phase 12: Extract video description for chapter markers and source detection
+    const description = videoDetails.shortDescription || '';
+
     console.log(`[Video API] Successfully fetched metadata for ${videoId}: ${durationSeconds}s`);
 
     res.json({
@@ -88,7 +117,8 @@ app.get('/api/video/:videoId', async (req, res) => {
       title: videoDetails.title,
       channel: videoDetails.author,
       duration: durationSeconds,
-      thumbnail: videoDetails.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+      thumbnail: videoDetails.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      description,
     });
 
   } catch (error) {
@@ -133,12 +163,33 @@ app.get('/api/transcript/:videoId', async (req, res) => {
       duration: Math.round(item.duration * 1000), // Convert seconds to milliseconds
     }));
 
+    // Phase 12: Attempt to extract chapter markers from video description
+    let chapters = [];
+    try {
+      const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en' },
+      });
+      if (pageResponse.ok) {
+        const html = await pageResponse.text();
+        const playerMatch = html.match(/var ytInitialPlayerResponse\s*=\s*({.+?});/s);
+        if (playerMatch) {
+          const playerData = JSON.parse(playerMatch[1]);
+          const description = playerData.videoDetails?.shortDescription || '';
+          chapters = extractChaptersFromDescription(description);
+        }
+      }
+    } catch (chapterError) {
+      console.log(`[Transcript API] Could not extract chapters: ${chapterError.message}`);
+    }
+
     res.json({
       videoId,
       segments,
       fullText: segments.map(s => s.text).join(' '),
       language: result.language_code,
-      isGenerated: result.is_generated
+      isGenerated: result.is_generated,
+      chapters,
     });
 
   } catch (error) {
@@ -351,6 +402,113 @@ app.post('/api/ai/generate', async (req, res) => {
   } catch (error) {
     console.error(`[AI API] Error:`, error.message);
     res.status(500).json({ error: `AI service error: ${error.message}` });
+  }
+});
+
+// Phase 12.3: Proxy endpoint for fetching external source content
+app.post('/api/sources/fetch', async (req, res) => {
+  const { url } = req.body;
+
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  console.log(`[Sources API] Fetching content from: ${url}`);
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: `Failed to fetch URL: ${response.statusText}`,
+        statusCode: response.status,
+      });
+    }
+
+    const html = await response.text();
+    // Strip HTML tags, keep meaningful text
+    const content = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 10000); // Cap at 10k chars
+
+    // Extract title from HTML
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : url;
+
+    res.json({ content, title, statusCode: response.status });
+  } catch (error) {
+    console.error(`[Sources API] Error fetching ${url}:`, error.message);
+    res.json({ error: error.message, content: '', title: url, statusCode: 0 });
+  }
+});
+
+// Phase 12.3: AI summarization endpoint for external sources
+app.post('/api/ai/summarize-source', async (req, res) => {
+  const { content, videoTitle, url } = req.body;
+
+  if (!content || !videoTitle) {
+    return res.status(400).json({ error: 'Content and videoTitle are required' });
+  }
+
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ error: 'AI service not configured' });
+  }
+
+  try {
+    const prompt = `Analyze this web page content and provide a summary relevant to the video "${videoTitle}".
+
+URL: ${url}
+Content (first 5000 chars):
+${content.slice(0, 5000)}
+
+Respond in valid JSON with exactly these fields:
+{
+  "title": "A clear, descriptive title for this source",
+  "summary": "A 2-3 sentence summary of the content",
+  "relevance": "How this source relates to the video topic"
+}`;
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+      }),
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'AI API error' });
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      return res.status(500).json({ error: 'No AI response' });
+    }
+
+    // Parse JSON from response (handle markdown code blocks)
+    const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const result = JSON.parse(jsonStr);
+    res.json(result);
+  } catch (error) {
+    console.error(`[AI API] Summarize source error:`, error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 

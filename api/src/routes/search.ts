@@ -31,7 +31,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
 
     // Search sessions
     if (type === 'all' || type === 'sessions') {
-      const sessions = await prisma.session.findMany({
+      const sessions = await prisma.lesson.findMany({
         where: {
           userId: req.user!.id,
           OR: [

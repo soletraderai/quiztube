@@ -1299,7 +1299,7 @@ export default function Dashboard() {
                 <Card
                   hoverable
                   className="cursor-pointer"
-                  onClick={() => navigate(`/session/${session.id}/notes`)}
+                  onClick={() => navigate(`/lesson/${session.id}/notes`)}
                 >
                   {session.video.thumbnailUrl && (
                     <img
