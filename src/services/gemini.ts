@@ -1,11 +1,12 @@
 // Gemini AI service for question generation and answer evaluation
-// Uses server-side proxy to protect API key
+// Uses backend API to protect API key
 import type { VideoMetadata, Topic, Question, ChatMessage, TutorPersonality, EvaluationResult, EnhancedTranscriptSegment, ScrapedResource, TopicCategory, TopicIcon, ContentAnalysis } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useAuthStore } from '../stores/authStore';
 import { formatSegmentsForPrompt } from './transcript';
 
-// Note: Transcript proxy (with AI) runs on 3002, API server runs on 3001
-const AI_PROXY_URL = 'http://localhost:3002/api/ai/generate';
+// Backend API AI endpoint
+const AI_PROXY_URL = 'http://localhost:3001/api/ai/generate';
 
 // Phase 9: Topic category descriptions for AI prompt guidance
 export const TOPIC_CATEGORIES: Record<TopicCategory, string> = {
@@ -40,13 +41,20 @@ export class RateLimitError extends Error {
   }
 }
 
-// Make a request to AI via server-side proxy (no API key needed from frontend)
+// Make a request to AI via backend API (no API key needed from frontend)
 async function callGemini(prompt: string): Promise<string> {
+  const { accessToken } = useAuthStore.getState();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
   const response = await fetch(AI_PROXY_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
+    credentials: 'include',
     body: JSON.stringify({ prompt }),
   });
 

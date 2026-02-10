@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # QuizTube Development Server Startup Script
-# Starts all required services: Redis, Backend API, Transcript Proxy, and Frontend
+# Starts all required services: Redis, Backend API, and Frontend
 
 set -e
 
@@ -45,7 +45,7 @@ cleanup() {
     jobs -p | xargs -r kill 2>/dev/null || true
 
     # Kill processes on our ports
-    for port in 3001 3002 5173 5174 5175; do
+    for port in 3001 5173 5174 5175; do
         kill_port $port
     done
 
@@ -57,7 +57,7 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # 1. Start Redis if not running
-echo -e "${BLUE}[1/4] Checking Redis...${NC}"
+echo -e "${BLUE}[1/3] Checking Redis...${NC}"
 if ! pgrep -x redis-server > /dev/null; then
     echo -e "${YELLOW}Starting Redis...${NC}"
     redis-server --daemonize yes
@@ -72,7 +72,7 @@ fi
 
 # 2. Start Backend API (port 3001)
 echo ""
-echo -e "${BLUE}[2/4] Starting Backend API (port 3001)...${NC}"
+echo -e "${BLUE}[2/3] Starting Backend API (port 3001)...${NC}"
 if check_port 3001; then
     echo -e "${YELLOW}Port 3001 already in use, restarting...${NC}"
     kill_port 3001
@@ -100,35 +100,9 @@ if ! curl -s http://localhost:3001/api/health > /dev/null 2>&1; then
     exit 1
 fi
 
-# 3. Start Transcript Proxy (port 3002)
+# 3. Start Frontend (Vite)
 echo ""
-echo -e "${BLUE}[3/4] Starting Transcript Proxy (port 3002)...${NC}"
-if check_port 3002; then
-    echo -e "${YELLOW}Port 3002 already in use, restarting...${NC}"
-    kill_port 3002
-fi
-node "$SCRIPT_DIR/server.js" > /tmp/quiztube-proxy.log 2>&1 &
-PROXY_PID=$!
-
-# Wait for proxy to be ready
-echo -n "Waiting for Proxy..."
-for i in {1..10}; do
-    if curl -s http://localhost:3002/api/health > /dev/null 2>&1; then
-        echo ""
-        echo -e "${GREEN}✓ Transcript Proxy running on http://localhost:3002${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 1
-done
-if ! curl -s http://localhost:3002/api/health > /dev/null 2>&1; then
-    echo ""
-    echo -e "${RED}✗ Transcript Proxy failed to start. Check /tmp/quiztube-proxy.log${NC}"
-fi
-
-# 4. Start Frontend (Vite)
-echo ""
-echo -e "${BLUE}[4/4] Starting Frontend (Vite)...${NC}"
+echo -e "${BLUE}[3/3] Starting Frontend (Vite)...${NC}"
 # Vite will auto-select an available port (5173, 5174, etc.)
 npm run dev > /tmp/quiztube-frontend.log 2>&1 &
 FRONTEND_PID=$!
@@ -161,12 +135,11 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${GREEN}All services started successfully!${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
-echo -e "  ${GREEN}Frontend:${NC}         http://localhost:${FRONTEND_PORT:-5173}"
-echo -e "  ${GREEN}Backend API:${NC}      http://localhost:3001"
-echo -e "  ${GREEN}Transcript Proxy:${NC} http://localhost:3002"
+echo -e "  ${GREEN}Frontend:${NC}    http://localhost:${FRONTEND_PORT:-5173}"
+echo -e "  ${GREEN}Backend API:${NC} http://localhost:3001"
 echo ""
 echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
 echo ""
 
 # Keep script running and show logs
-tail -f /tmp/quiztube-api.log /tmp/quiztube-proxy.log /tmp/quiztube-frontend.log 2>/dev/null
+tail -f /tmp/quiztube-api.log /tmp/quiztube-frontend.log 2>/dev/null

@@ -1,7 +1,18 @@
 // Phase 12: External Source Detection and Summarization Service
 import type { ExternalSource } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
-const PROXY_BASE = 'http://localhost:3002';
+const API_BASE = 'http://localhost:3001';
+
+// Get auth headers for API calls
+function getAuthHeaders(): Record<string, string> {
+  const { accessToken } = useAuthStore.getState();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+  return headers;
+}
 
 // Known non-content URL patterns to filter out
 const EXCLUDED_PATTERNS = [
@@ -112,10 +123,13 @@ export async function extractSourceSummaries(
 
 async function fetchAndSummarize(url: string, videoTitle: string): Promise<ExternalSource | null> {
   try {
-    // Step 1: Fetch content via proxy
-    const fetchResponse = await fetch(`${PROXY_BASE}/api/sources/fetch`, {
+    const headers = getAuthHeaders();
+
+    // Step 1: Fetch content via backend API
+    const fetchResponse = await fetch(`${API_BASE}/api/sources/fetch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
+      credentials: 'include',
       body: JSON.stringify({ url }),
     });
 
@@ -124,10 +138,11 @@ async function fetchAndSummarize(url: string, videoTitle: string): Promise<Exter
     const { content, title: pageTitle } = await fetchResponse.json();
     if (!content || content.length < 50) return null;
 
-    // Step 2: Summarize via AI proxy
-    const aiResponse = await fetch(`${PROXY_BASE}/api/ai/summarize-source`, {
+    // Step 2: Summarize via backend API
+    const aiResponse = await fetch(`${API_BASE}/api/sources/summarize`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
+      credentials: 'include',
       body: JSON.stringify({ content, videoTitle, url }),
     });
 

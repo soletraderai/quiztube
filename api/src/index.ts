@@ -30,6 +30,8 @@ import searchRoutes from './routes/search.js';
 import engagementRoutes from './routes/engagements.js';
 import recommendationRoutes from './routes/recommendations.js';
 import learningPathRoutes from './routes/learningPaths.js';
+import youtubeRoutes from './routes/youtube.js';
+import sourcesRoutes from './routes/sources.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -178,6 +180,8 @@ app.use('/api/search', authMiddleware, searchRoutes);
 app.use('/api/engagements', authMiddleware, engagementRoutes);
 app.use('/api/recommendations', authMiddleware, recommendationRoutes);
 app.use('/api/learning-paths', authMiddleware, learningPathRoutes);
+app.use('/api/youtube', authMiddleware, youtubeRoutes);
+app.use('/api/sources', authMiddleware, sourcesRoutes);
 app.use('/api/validate', validateRoutes);
 app.use('/api/notifications', notificationRoutes);
 
