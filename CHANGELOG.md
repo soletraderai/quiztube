@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Phase 13: Backend API Consolidation & Apify Integration**
+  - Eliminated standalone transcript proxy server (`server.js`, port 3002) — all endpoints consolidated into backend API (port 3001)
+  - Replaced 7 unreliable YouTube transcript libraries (`youtube-captions-api`, `youtube-captions-scraper`, `youtube-transcript`, `youtube-transcript-api`, `youtube-transcript-ts`, `youtubei.js`, `yt-transcript`) with Apify actor `supreme_coder/youtube-transcript-scraper` (99.9% success rate)
+  - Added per-user Redis caching for transcripts (key: `transcript:{userId}:{videoId}`, TTL: 7 days)
+  - Secured all frontend service calls with JWT authentication headers (youtube.ts, gemini.ts, externalSources.ts)
+  - Simplified architecture from 3 servers to 2 servers (frontend + backend API)
+  - New backend routes: `GET /api/youtube/video/:videoId`, `GET /api/youtube/transcript/:videoId`, `POST /api/sources/fetch`, `POST /api/sources/summarize`, `POST /api/ai/generate`, `POST /api/validate/youtube-url`
+  - Removed 9 unused root dependencies (`express`, `cors`, 7 YouTube transcript libs)
+  - Updated `start-dev.sh` to 3-service startup (Redis, API, Frontend)
+  - Added `APIFY_API_TOKEN` environment variable requirement
+
 ### Added
 - **Phase 12: Learning System Documentation**
   - Created `docs/learning-system/learning-overview.md` as single source of truth for lesson architecture
@@ -354,6 +366,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | Unreleased | 2026-01-20 | Phase 8 Contextual Questions | ~415/415 (~100%) |
 | Unreleased | 2026-02-03 | Phase 10 Two-Stage Question Pipeline | ~415/415 (~100%) |
 | Unreleased | 2026-02-04 | Phase 12 Learning System Documentation | ~415/415 (~100%) |
+| Unreleased | 2026-02-10 | Phase 13 Backend API Consolidation & Apify | ~415/415 (~100%) |
 
 *Note: Feature count increased from 302 to 415 during Phase 2 planning, causing apparent progress decrease.
 

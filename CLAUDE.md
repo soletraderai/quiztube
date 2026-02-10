@@ -21,15 +21,10 @@ QuizTube is an interactive learning application that transforms YouTube videos i
 - **Auth**: JWT tokens stored in cookies
 - **Routes**: Individual route files in `api/src/routes/`
 
-### Transcript Proxy Server
-- **Port**: 3002
-- **Location**: `server.js` (root)
-- **Purpose**: Server-side AI calls to Gemini, YouTube transcript extraction
-
 ## Development Commands
 
 ```bash
-# Start all services (Redis, API, Proxy, Frontend)
+# Start all services (Redis, API, Frontend)
 ./start-dev.sh
 
 # Frontend only
@@ -85,7 +80,10 @@ Core types in `src/types/index.ts`:
 Key endpoints in `api/src/routes/`:
 - `/auth` - Login, signup, JWT refresh
 - `/sessions` - CRUD for learning sessions
-- `/ai` - Proxied Gemini AI calls
+- `/ai` - Gemini AI calls (generate, evaluate, summarize)
+- `/youtube` - Video metadata + transcript extraction (via Apify, Redis-cached)
+- `/sources` - External source fetching + AI summarization
+- `/validate` - Input validation (settings, YouTube URLs)
 - `/commitment` - Learning progress tracking
 - `/subscriptions` - Stripe payment integration
 - `/timedSessions` - Rapid/Focused/Comprehensive quiz modes
@@ -94,6 +92,7 @@ Key endpoints in `api/src/routes/`:
 
 Frontend uses Vite env vars (`VITE_*`). Backend requires:
 - `GEMINI_API_KEY` - Google AI Studio key
+- `APIFY_API_TOKEN` - Apify API token (YouTube transcript extraction)
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Supabase config
 - `STRIPE_*` - Payment processing
 - `RESEND_API_KEY` - Email service

@@ -40,4 +40,49 @@ router.post('/settings', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
+// POST /api/validate/youtube-url
+router.post('/youtube-url', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        error: 'Validation failed',
+        errors: { url: 'URL is required' },
+      });
+    }
+
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        errors: { url: 'URL cannot be empty or whitespace only' },
+      });
+    }
+
+    // Match various YouTube URL formats
+    const youtubePatterns = [
+      /^https?:\/\/(www\.)?youtube\.com\/watch\?v=[\w-]+/,
+      /^https?:\/\/youtu\.be\/[\w-]+/,
+      /^https?:\/\/(www\.)?youtube\.com\/embed\/[\w-]+/,
+    ];
+
+    const isValidYouTube = youtubePatterns.some((pattern) => pattern.test(trimmedUrl));
+
+    if (!isValidYouTube) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        errors: { url: 'Please enter a valid YouTube URL (youtube.com/watch?v=... or youtu.be/...)' },
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'YouTube URL is valid',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

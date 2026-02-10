@@ -1,21 +1,18 @@
 // YouTube service for extracting video metadata and transcripts
 import type { VideoMetadata, TranscriptSegment } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
-// Proxy server URL for transcript and video metadata extraction (bypasses CORS)
-// Note: API server runs on 3001, transcript proxy runs on 3002
-const TRANSCRIPT_PROXY_URL = 'http://localhost:3002';
+// Backend API URL for transcript and video metadata extraction
+const API_BASE_URL = 'http://localhost:3001';
 
-// Check if the transcript proxy server is available
-async function isProxyAvailable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${TRANSCRIPT_PROXY_URL}/api/health`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(2000) // 2 second timeout
-    });
-    return response.ok;
-  } catch {
-    return false;
+// Get auth headers for API calls
+function getAuthHeaders(): HeadersInit {
+  const { accessToken } = useAuthStore.getState();
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
   }
+  return headers;
 }
 
 // Extract video ID from various YouTube URL formats
@@ -40,80 +37,83 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
-// Fetch video metadata using YouTube oEmbed API (no API key required)
+// Fetch video metadata from backend API
 export async function fetchVideoMetadata(videoId: string): Promise<VideoMetadata> {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
 
-  // Use oEmbed API for basic metadata (no API key required)
-  const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-  const response = await fetch(oembedUrl);
-
-  if (!response.ok) {
-    // 401/403 typically means the video is private
-    // 404 means the video doesn't exist or has been deleted
-    // 400 can also indicate an invalid/unavailable video
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('This video is private. Please try a public video.');
-    } else if (response.status === 404 || response.status === 400) {
-      throw new Error('This video is unavailable. It may have been deleted or does not exist.');
-    }
-    throw new Error(`Failed to fetch video information (${response.status}). Please try a different video.`);
-  }
-
-  const data = await response.json();
-
-  // Try to fetch actual duration from proxy server
-  let duration = 0;
   try {
-    const proxyAvailable = await isProxyAvailable();
-    if (proxyAvailable) {
-      const durationResponse = await fetch(`${TRANSCRIPT_PROXY_URL}/api/video/${videoId}`);
-      if (durationResponse.ok) {
-        const videoData = await durationResponse.json();
-        duration = videoData.duration || 0;
-        console.log(`Fetched actual video duration: ${duration} seconds`);
-      }
-    }
-  } catch (error) {
-    console.warn('Could not fetch video duration from proxy:', error);
-  }
-
-  return {
-    url: url,
-    title: data.title || 'Untitled Video',
-    thumbnailUrl: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-    duration: duration, // Actual duration from proxy, or 0 if unavailable
-    channel: data.author_name || 'Unknown Channel',
-    publishDate: undefined, // Not available from oEmbed
-  };
-}
-
-// Fetch transcript using the proxy server (bypasses CORS)
-// Falls back to empty array if proxy is not available
-export async function fetchTranscript(videoId: string): Promise<TranscriptSegment[]> {
-  // First check if proxy server is available
-  const proxyAvailable = await isProxyAvailable();
-
-  if (!proxyAvailable) {
-    console.log('Transcript proxy server not available - using Gemini for content analysis based on video metadata');
-    return [];
-  }
-
-  try {
-    console.log(`Fetching transcript from proxy server for video: ${videoId}`);
-
-    const response = await fetch(`${TRANSCRIPT_PROXY_URL}/api/transcript/${videoId}`);
+    const response = await fetch(`${API_BASE_URL}/api/youtube/video/${videoId}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.warn(`Transcript fetch failed: ${errorData.error || response.statusText}`);
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('This video is private. Please try a public video.');
+      } else if (response.status === 404) {
+        throw new Error('This video is unavailable. It may have been deleted or does not exist.');
+      }
+      throw new Error(errorData.message || `Failed to fetch video information (${response.status}).`);
+    }
+
+    const data = await response.json();
+
+    return {
+      url: url,
+      title: data.title || 'Untitled Video',
+      thumbnailUrl: data.thumbnail || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      duration: data.duration || 0,
+      channel: data.channel || 'Unknown Channel',
+      publishDate: undefined,
+    };
+  } catch (error) {
+    // Fallback to oEmbed if backend is unavailable
+    console.warn('Backend video metadata fetch failed, falling back to oEmbed:', error);
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const response = await fetch(oembedUrl);
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('This video is private. Please try a public video.');
+      } else if (response.status === 404 || response.status === 400) {
+        throw new Error('This video is unavailable. It may have been deleted or does not exist.');
+      }
+      throw new Error(`Failed to fetch video information (${response.status}). Please try a different video.`);
+    }
+
+    const data = await response.json();
+    return {
+      url: url,
+      title: data.title || 'Untitled Video',
+      thumbnailUrl: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      duration: 0,
+      channel: data.author_name || 'Unknown Channel',
+      publishDate: undefined,
+    };
+  }
+}
+
+// Fetch transcript from backend API
+export async function fetchTranscript(videoId: string): Promise<TranscriptSegment[]> {
+  try {
+    console.log(`Fetching transcript from backend API for video: ${videoId}`);
+
+    const response = await fetch(`${API_BASE_URL}/api/youtube/transcript/${videoId}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.warn(`Transcript fetch failed: ${errorData.message || response.statusText}`);
       return [];
     }
 
     const data = await response.json();
 
     if (!data.segments || data.segments.length === 0) {
-      console.log('No transcript segments returned from proxy');
+      console.log('No transcript segments returned from API');
       return [];
     }
 
@@ -121,7 +121,7 @@ export async function fetchTranscript(videoId: string): Promise<TranscriptSegmen
     return data.segments as TranscriptSegment[];
 
   } catch (error) {
-    console.warn('Error fetching transcript from proxy:', error);
+    console.warn('Error fetching transcript from API:', error);
     return [];
   }
 }

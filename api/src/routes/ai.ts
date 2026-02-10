@@ -487,4 +487,102 @@ Return JSON:
   }
 });
 
+// POST /api/ai/generate - Generic Gemini proxy endpoint
+// Mirrors the contract from the old server.js proxy
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+router.post('/generate', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const rateLimit = await aiRateLimit(req.user!.id, req.user!.tier);
+    if (!rateLimit.allowed) {
+      throw new AppError(429, 'AI rate limit exceeded', 'RATE_LIMITED');
+    }
+
+    const { prompt } = req.body;
+
+    if (!prompt || typeof prompt !== 'string') {
+      throw new AppError(400, 'Prompt is required', 'INVALID_INPUT');
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new AppError(500, 'AI service not configured', 'AI_NOT_CONFIGURED');
+    }
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as Record<string, any>;
+
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '60', 10);
+        return res.status(429).json({
+          error: `Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`,
+          retryAfter,
+        });
+      }
+
+      const errorMessage = errorData.error?.message || response.statusText;
+      if (errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('rate')) {
+        return res.status(429).json({
+          error: 'API quota exceeded. Please wait a few minutes before trying again.',
+          retryAfter: 60,
+        });
+      }
+
+      throw new AppError(response.status, `AI API error: ${errorMessage}`, 'AI_API_ERROR');
+    }
+
+    const data = await response.json() as Record<string, any>;
+
+    if (data.error) {
+      if (data.error.message.toLowerCase().includes('quota') || data.error.message.toLowerCase().includes('rate')) {
+        return res.status(429).json({
+          error: 'API rate limit reached. Please wait a few minutes before trying again.',
+          retryAfter: 60,
+        });
+      }
+      throw new AppError(500, `AI API error: ${data.error.message}`, 'AI_API_ERROR');
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new AppError(500, 'No response from AI API', 'AI_NO_RESPONSE');
+    }
+
+    // Track usage
+    await prisma.usageTracking.upsert({
+      where: {
+        userId_periodStart: {
+          userId: req.user!.id,
+          periodStart: new Date(new Date().setDate(1)),
+        },
+      },
+      update: { aiRequestsCount: { increment: 1 } },
+      create: {
+        userId: req.user!.id,
+        periodStart: new Date(new Date().setDate(1)),
+        periodEnd: new Date(new Date().setMonth(new Date().getMonth() + 1, 0)),
+        aiRequestsCount: 1,
+      },
+    });
+
+    res.json({ text });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
